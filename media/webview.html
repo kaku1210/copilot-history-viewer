@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-NONCE_PLACEHOLDER';">
+    <style>
+        :root {
+            --bg: var(--vscode-editor-background);
+            --fg: var(--vscode-editor-foreground);
+            --border: var(--vscode-panel-border, #333);
+            --hover: var(--vscode-list-hoverBackground);
+            --input-bg: var(--vscode-input-background);
+            --input-fg: var(--vscode-input-foreground);
+            --input-border: var(--vscode-input-border, #444);
+            --btn-bg: var(--vscode-button-background);
+            --btn-fg: var(--vscode-button-foreground);
+            --badge-bg: var(--vscode-badge-background);
+            --badge-fg: var(--vscode-badge-foreground);
+            --accent: var(--vscode-focusBorder, #007acc);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: var(--vscode-font-family,'Segoe UI',sans-serif); font-size: var(--vscode-font-size,13px); color: var(--fg); background: var(--bg); overflow-x: hidden; }
+        .toolbar { position: sticky; top: 0; z-index: 100; background: var(--bg); padding: 8px; border-bottom: 1px solid var(--border); }
+        .search-row { display: flex; gap: 4px; margin-bottom: 6px; }
+        .search-input { flex: 1; padding: 4px 8px; background: var(--input-bg); color: var(--input-fg); border: 1px solid var(--input-border); border-radius: 3px; outline: none; font-size: 12px; }
+        .search-input:focus { border-color: var(--accent); }
+        .icon-btn { background: var(--input-bg); border: 1px solid var(--input-border); color: var(--fg); cursor: pointer; padding: 5px 8px; border-radius: 4px; font-size: 15px; display: flex; align-items: center; gap: 3px; }
+        .icon-btn:hover { background: var(--hover); border-color: var(--accent); }
+        .icon-btn .btn-label { font-size: 11px; }
+        .filter-row { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+        .toggle-btn { font-size: 11px; padding: 3px 8px; background: var(--input-bg); color: var(--fg); border: 1px solid var(--input-border); border-radius: 3px; cursor: pointer; }
+        .toggle-btn.active { background: var(--btn-bg); color: var(--btn-fg); border-color: var(--btn-bg); }
+        /* 置顶角标 */
+        .pin-badge { font-size: 10px; padding: 1px 5px; border-radius: 8px; background: #c8860a; color: #fff; margin-right: 2px; }
+        .pin-badge.global { background: #9b59b6; }
+
+        /* ===== 日历弹窗 ===== */
+        .calendar-panel { display: none; padding: 10px; border-bottom: 1px solid var(--border); }
+        .calendar-panel.visible { display: block; }
+        .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .calendar-header span { font-size: 13px; font-weight: bold; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; margin-bottom: 8px; }
+        .calendar-grid .day-header { font-size: 10px; opacity: 0.5; padding: 4px 0; }
+        .calendar-grid .day { font-size: 11px; padding: 4px 2px; border-radius: 3px; cursor: pointer; position: relative; }
+        .calendar-grid .day:hover { background: var(--hover); }
+        .calendar-grid .day.has-data { font-weight: bold; color: var(--accent); }
+        .calendar-grid .day.has-data::after { content: ''; position: absolute; bottom: 1px; left: 50%; transform: translateX(-50%); width: 4px; height: 4px; border-radius: 50%; background: var(--accent); }
+        .calendar-grid .day.range-start { background: var(--btn-bg); color: var(--btn-fg); border-radius: 3px 0 0 3px; }
+        .calendar-grid .day.range-end { background: var(--btn-bg); color: var(--btn-fg); border-radius: 0 3px 3px 0; }
+        .calendar-grid .day.range-start.range-end { border-radius: 3px; }
+        .calendar-grid .day.in-range { background: rgba(0,122,204,0.18); color: var(--fg); border-radius: 0; }
+        .calendar-grid .day.other-month { opacity: 0.3; }
+        .calendar-grid .day.today { border: 1px solid var(--accent); }
+
+        /* 日历：模式切换 */
+        .cal-mode-row { display: flex; gap: 4px; margin-bottom: 8px; }
+        .cal-mode-btn { flex: 1; font-size: 11px; padding: 3px 4px; background: var(--input-bg); color: var(--fg); border: 1px solid var(--input-border); border-radius: 3px; cursor: pointer; text-align: center; }
+        .cal-mode-btn.active { background: var(--btn-bg); color: var(--btn-fg); border-color: var(--btn-bg); }
+
+        /* 日历：范围显示 */
+        .cal-range-display { font-size: 11px; opacity: 0.7; margin-bottom: 6px; min-height: 16px; }
+
+        /* 日历：过滤条件 */
+        .cal-filter-section { border-top: 1px solid var(--border); padding-top: 8px; margin-top: 2px; }
+        .cal-filter-title { font-size: 11px; opacity: 0.6; margin-bottom: 4px; }
+        .cal-filter-options { display: flex; flex-direction: column; gap: 4px; }
+        .cal-filter-option { display: flex; align-items: center; gap: 6px; font-size: 11px; cursor: pointer; padding: 2px 0; }
+        .cal-filter-option input[type=checkbox] { cursor: pointer; flex-shrink: 0; }
+
+        /* 日历：操作按钮 */
+        .cal-actions { display: flex; gap: 4px; margin-top: 8px; }
+        .cal-apply-btn { flex: 1; font-size: 11px; padding: 4px 8px; background: var(--btn-bg); color: var(--btn-fg); border: none; border-radius: 3px; cursor: pointer; }
+        .cal-clear-btn { font-size: 11px; padding: 4px 8px; background: var(--input-bg); color: var(--fg); border: 1px solid var(--input-border); border-radius: 3px; cursor: pointer; }
+        .stats { padding: 4px 8px; font-size: 11px; opacity: 0.6; border-bottom: 1px solid var(--border); }
+        .session-list { list-style: none; }
+        .session-item { border-bottom: 1px solid var(--border); }
+        .session-header { display: flex; align-items: center; padding: 8px; cursor: pointer; gap: 6px; transition: background 0.15s; }
+        .session-header:hover { background: var(--hover); }
+        .session-header.expanded { background: var(--hover); }
+        .arrow { font-size: 10px; transition: transform 0.2s; flex-shrink: 0; width: 16px; text-align: center; pointer-events: none; }
+        .arrow.expanded { transform: rotate(90deg); }
+        .session-info { flex: 1; min-width: 0; pointer-events: none; }
+        .session-title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .session-meta { font-size: 11px; opacity: 0.6; display: flex; gap: 8px; margin-top: 2px; }
+        .session-badge { font-size: 10px; padding: 1px 6px; border-radius: 8px; background: var(--badge-bg); color: var(--badge-fg); }
+        .session-note { font-size: 11px; color: #e8a838; margin-top: 2px; font-style: italic; }
+        .session-actions { display: none; gap: 2px; flex-shrink: 0; }
+        .session-header:hover .session-actions { display: flex; }
+        .action-btn { background: transparent; border: none; color: var(--fg); cursor: pointer; padding: 2px 4px; border-radius: 3px; font-size: 12px; opacity: 0.6; }
+        .action-btn:hover { opacity: 1; background: var(--hover); }
+        .turns-container { display: none; padding-left: 16px; border-left: 2px solid var(--accent); margin-left: 12px; }
+        .turns-container.visible { display: block; }
+        .turn-item { border-bottom: 1px solid var(--border); }
+        .turn-header { display: flex; align-items: flex-start; padding: 6px 8px; cursor: pointer; gap: 6px; transition: background 0.15s; }
+        .turn-header:hover { background: var(--hover); }
+        .turn-question { flex: 1; min-width: 0; pointer-events: none; }
+        .turn-question-text { font-size: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .turn-meta { font-size: 10px; opacity: 0.5; margin-top: 2px; }
+        .turn-note { font-size: 10px; color: #e8a838; font-style: italic; margin-top: 2px; }
+        .turn-actions { display: none; gap: 2px; flex-shrink: 0; }
+        .turn-header:hover .turn-actions { display: flex; }
+        .turn-content { display: none; padding: 8px 8px 8px 28px; background: rgba(255,255,255,0.02); }
+        .turn-content.visible { display: block; }
+        .response-item { margin-bottom: 12px; padding: 8px; border-radius: 4px; background: rgba(255,255,255,0.03); border-left: 3px solid var(--accent); }
+        .response-role { font-size: 10px; text-transform: uppercase; opacity: 0.5; margin-bottom: 4px; font-weight: bold; }
+        .response-text { font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+        .note-editor { display: none; padding: 6px 8px; gap: 4px; }
+        .note-editor.visible { display: flex; }
+        .note-editor input { flex: 1; padding: 3px 6px; background: var(--input-bg); color: var(--input-fg); border: 1px solid var(--accent); border-radius: 3px; font-size: 11px; outline: none; }
+        .note-editor button { padding: 3px 8px; background: var(--btn-bg); color: var(--btn-fg); border: none; border-radius: 3px; cursor: pointer; font-size: 11px; }
+        .empty-state { text-align: center; padding: 40px 20px; opacity: 0.5; }
+        .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+        .loading { text-align: center; padding: 20px; }
+        .loading::after { content: ''; display: inline-block; width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .toast { position: fixed; bottom: 20px; right: 20px; padding: 8px 16px; background: var(--btn-bg); color: var(--btn-fg); border-radius: 4px; font-size: 12px; z-index: 1000; opacity: 0; transform: translateY(10px); transition: all 0.3s; }
+        .toast.visible { opacity: 1; transform: translateY(0); }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <div class="search-row">
+            <input class="search-input" id="searchInput" type="text" placeholder="搜索对话内容..." />
+            <button class="icon-btn" id="calendarBtn" title="按日期筛选">&#128197;<span class="btn-label">日期</span></button>
+            <button class="icon-btn" id="refreshBtn" title="刷新数据">&#128260;<span class="btn-label">刷新</span></button>
+        </div>
+        <div class="filter-row">
+            <select id="archiveSelect" style="font-size:11px;padding:3px 6px;background:var(--input-bg);color:var(--fg);border:1px solid var(--input-border);border-radius:3px;cursor:pointer;">
+                <option value="normal" selected>未归档</option>
+                <option value="archived">已归档</option>
+                <option value="all">全部显示</option>
+            </select>
+            <select id="sortSelect" style="font-size:11px;padding:2px 4px;background:var(--input-bg);color:var(--fg);border:1px solid var(--input-border);border-radius:3px;cursor:pointer;">
+                <option value="updatedAt">按更新时间</option>
+                <option value="createdAt">按创建时间</option>
+            </select>
+            <button class="toggle-btn" id="dateActiveToggle" style="display:none;"></button>
+        </div>
+    </div>
+    <div class="calendar-panel" id="calendarPanel">
+        <!-- 模式切换 -->
+        <div class="cal-mode-row">
+            <div class="cal-mode-btn active" id="calModeSingle" data-cal-action="modeSingle">单日模式</div>
+            <div class="cal-mode-btn" id="calModeRange" data-cal-action="modeRange">范围模式</div>
+        </div>
+        <!-- 日历导航 -->
+        <div class="calendar-header">
+            <button class="icon-btn" id="prevMonth">&#9664;</button>
+            <span id="calendarTitle">2025年1月</span>
+            <button class="icon-btn" id="nextMonth">&#9654;</button>
+        </div>
+        <div class="calendar-grid" id="calendarGrid"></div>
+        <!-- 范围显示 -->
+        <div class="cal-range-display" id="calRangeDisplay"></div>
+        <!-- 过滤条件（范围模式下显示） -->
+        <div class="cal-filter-section" id="calFilterSection" style="display:none;">
+            <div class="cal-filter-title">日期筛选方式（可多选）</div>
+            <div class="cal-filter-options" id="calFilterOptions">
+                <label class="cal-filter-option"><input type="checkbox" value="anyTurn"> 任意对话在日期内</label>
+                <label class="cal-filter-option"><input type="checkbox" value="hasOneTurn"> 只要有一个提问在日期内</label>
+                <label class="cal-filter-option"><input type="checkbox" value="startInRange"> 只要提问开始时间在日期内</label>
+                <label class="cal-filter-option"><input type="checkbox" value="allTurns"> 必须全部在日期内</label>
+            </div>
+        </div>
+        <!-- 操作按钮 -->
+        <div class="cal-actions" id="calActions" style="display:none;">
+            <button class="cal-apply-btn" id="calApplyBtn">应用筛选</button>
+            <button class="cal-clear-btn" id="calClearBtn">清除</button>
+        </div>
+    </div>
+    <div class="stats" id="stats">加载中...</div>
+    <ul class="session-list" id="sessionList"></ul>
+    <div class="empty-state" id="emptyState" style="display:none;">
+        <div class="icon">&#128172;</div>
+        <p>暂无聊天记录</p>
+        <p style="font-size:11px;margin-top:8px;">使用 Copilot Chat 后，历史记录会显示在这里</p>
+    </div>
+    <div class="loading" id="loading" style="display:none;">
+        <p style="margin-top:8px;font-size:12px;">正在加载聊天记录...</p>
+    </div>
+    <div id="initHint" style="text-align:center;padding:30px 16px;font-size:12px;opacity:0.6;">
+        <div style="font-size:32px;margin-bottom:8px;">&#128172;</div>
+        <p>正在连接插件...</p>
+    </div>
+    <div class="toast" id="toast"></div>
+
+    <script nonce="NONCE_PLACEHOLDER">
+        var vscode = acquireVsCodeApi();
+        var allSessions = [];
+        var sessionDates = new Set();
+        var calendarDate = new Date();
+
+        // ===== 会话状态（跨刷新保持，reload 才清空） =====
+        // archiveMode: 'normal'=未归档, 'archived'=已归档, 'all'=全部
+        var archiveMode = 'normal';
+        var currentSortBy = 'updatedAt';   // 'updatedAt' | 'createdAt'
+        var currentKeyword = '';           // 搜索词（刷新按钮会清空）
+
+        // ===== 日历状态（不持久化，reload 恢复默认） =====
+        var calMode = 'single';
+        var calRangeStart = null;
+        var calRangeEnd = null;
+        var calRangeSelecting = false;
+        var calFilterModes = ['anyTurn'];
+        var activeDateFrom = null;
+        var activeDateTo = null;
+        var activeDateFilterModes = ['anyTurn'];
+
+        // ===== 消息监听 =====
+        window.addEventListener('message', function(event) {
+            var msg = event.data;
+            if (msg.type === 'sessionsData') {
+                allSessions = msg.sessions || [];
+                sessionDates = new Set();
+                allSessions.forEach(function(s) {
+                    var d = new Date(s.createdAt);
+                    if (!isNaN(d.getTime())) { sessionDates.add(d.toISOString().split('T')[0]); }
+                });
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('initHint').style.display = 'none';
+                renderSessions(allSessions);
+                if (document.getElementById('calendarPanel').classList.contains('visible')) { renderCalendar(); }
+            } else if (msg.type === 'turnsData') {
+                renderFullTurns(msg.sessionId, msg.turns);
+            } else if (msg.type === 'updateSuccess') {
+                showToast(msg.message);
+            } else if (msg.type === 'error') {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('initHint').textContent = '错误: ' + msg.message;
+                document.getElementById('initHint').style.display = 'block';
+            }
+        });
+
+        // 发 ready
+        document.getElementById('initHint').style.display = 'none';
+        document.getElementById('loading').style.display = 'block';
+        vscode.postMessage({ type: 'ready' });
+
+        // ===== 工具栏事件 =====
+        document.getElementById('searchInput').addEventListener('input', debounce(function() {
+            currentKeyword = document.getElementById('searchInput').value.trim();
+            applyFilters();
+        }, 300));
+        document.getElementById('sortSelect').addEventListener('change', function() {
+            currentSortBy = this.value;
+            applyFilters();
+        });
+        document.getElementById('refreshBtn').addEventListener('click', function() {
+            // 刷新：清空搜索词，保留其他状态
+            currentKeyword = '';
+            document.getElementById('searchInput').value = '';
+            document.getElementById('loading').style.display = 'block';
+            vscode.postMessage({ type: 'refresh' });
+        });
+        document.getElementById('calendarBtn').addEventListener('click', function() {
+            var panel = document.getElementById('calendarPanel');
+            panel.classList.toggle('visible');
+            if (panel.classList.contains('visible')) { renderCalendar(); }
+        });
+        document.getElementById('dateActiveToggle').addEventListener('click', function() {
+            // 点击"日期筛选中"标签 -> 清除
+            clearDateFilter();
+        });
+        document.getElementById('calApplyBtn').addEventListener('click', function() {
+            applyCalendarFilter();
+        });
+        document.getElementById('calClearBtn').addEventListener('click', function() {
+            clearDateFilter();
+            document.getElementById('calendarPanel').classList.remove('visible');
+        });
+        document.getElementById('archiveSelect').addEventListener('change', function() {
+            archiveMode = this.value;
+            applyFilters();
+        });
+        document.getElementById('prevMonth').addEventListener('click', function() {
+            calendarDate.setMonth(calendarDate.getMonth() - 1); renderCalendar();
+        });
+        document.getElementById('nextMonth').addEventListener('click', function() {
+            calendarDate.setMonth(calendarDate.getMonth() + 1); renderCalendar();
+        });
+
+        // ===== 事件委托：sessionList 上统一处理所有点击 =====
+        document.getElementById('sessionList').addEventListener('click', function(e) {
+            var target = e.target;
+
+            // 1. session-header 展开/收起
+            var sessionHeader = target.closest('.session-header');
+            if (sessionHeader && !target.closest('.action-btn') && !target.closest('.note-editor')) {
+                var sessionId = sessionHeader.closest('.session-item').dataset.sessionId;
+                toggleSession(sessionHeader, sessionId);
+                return;
+            }
+
+            // 2. turn-header 展开/收起
+            var turnHeader = target.closest('.turn-header');
+            if (turnHeader && !target.closest('.action-btn') && !target.closest('.note-editor')) {
+                var turnItem = turnHeader.closest('.turn-item');
+                var turnId = turnItem.dataset.turnId;
+                var sessionId2 = turnHeader.closest('.turns-container').closest('.session-item').dataset.sessionId;
+                toggleTurn(turnHeader, sessionId2, turnId);
+                return;
+            }
+
+            // 3. 操作按钮
+            var actionBtn = target.closest('.action-btn');
+            if (actionBtn) {
+                e.stopPropagation();
+                var action = actionBtn.dataset.action;
+                var sid = actionBtn.dataset.sessionId;
+                var tid = actionBtn.dataset.turnId;
+                if (action === 'editNote') { editNote(sid); }
+                else if (action === 'archive') { archiveSession(sid, actionBtn.dataset.archive === 'true'); }
+                else if (action === 'delete') { deleteSession(sid); }
+                else if (action === 'editTurnNote') { editTurnNote(sid, tid); }
+                else if (action === 'pin') { showPinMenu(sid, actionBtn); }
+                else if (action === 'unpin') { unpinSession(sid); }
+                return;
+            }
+
+            // 4. 备注保存按钮
+            var saveBtn = target.closest('.note-editor button');
+            if (saveBtn) {
+                var noteEditor = saveBtn.closest('.note-editor');
+                var noteType = noteEditor.dataset.noteType;
+                var noteSid = noteEditor.dataset.sessionId;
+                var noteTid = noteEditor.dataset.turnId;
+                var val = noteEditor.querySelector('input').value;
+                if (noteType === 'session') { saveNote(noteSid, val, noteEditor); }
+                else { saveTurnNote(noteSid, noteTid, val, noteEditor); }
+                return;
+            }
+
+            // 5. 日历日期点击
+            var dayCell = target.closest('.day');
+            if (dayCell && dayCell.dataset.date) {
+                selectDay(dayCell.dataset.date);
+            }
+        });
+
+        // 日历：模式切换 + 日期点击（委托到 calendarPanel）
+        document.getElementById('calendarPanel').addEventListener('click', function(e) {
+            var target = e.target;
+            var calAction = target.dataset.calAction;
+            if (calAction === 'modeSingle') { setCalMode('single'); return; }
+            if (calAction === 'modeRange') { setCalMode('range'); return; }
+            var dayCell = target.closest('.day');
+            if (dayCell && dayCell.dataset.date && !dayCell.classList.contains('other-month')) {
+                var dateStr = dayCell.dataset.date;
+                if (calMode === 'single') {
+                    // 单日模式：直接应用
+                    activeDateFrom = dateStr;
+                    activeDateTo = dateStr;
+                    activeDateFilterModes = ['anyTurn'];
+                    applyFilters();
+                    document.getElementById('calendarPanel').classList.remove('visible');
+                    updateDateActiveToggle();
+                } else {
+                    // 范围模式
+                    if (!calRangeSelecting || !calRangeStart) {
+                        calRangeStart = dateStr;
+                        calRangeEnd = null;
+                        calRangeSelecting = true;
+                    } else {
+                        if (dateStr < calRangeStart) {
+                            calRangeEnd = calRangeStart;
+                            calRangeStart = dateStr;
+                        } else {
+                            calRangeEnd = dateStr;
+                        }
+                        calRangeSelecting = false;
+                    }
+                    renderCalendar();
+                    updateRangeDisplay();
+                    // 两个都选了 -> 显示操作区
+                    if (calRangeStart && calRangeEnd) {
+                        syncCheckboxesToState();
+                        document.getElementById('calActions').style.display = 'flex';
+                    }
+                }
+            }
+        });
+
+        function setCalMode(mode) {
+            calMode = mode;
+            calRangeStart = null; calRangeEnd = null; calRangeSelecting = false;
+            document.getElementById('calModeSingle').classList.toggle('active', mode === 'single');
+            document.getElementById('calModeRange').classList.toggle('active', mode === 'range');
+            document.getElementById('calFilterSection').style.display = mode === 'range' ? 'block' : 'none';
+            document.getElementById('calActions').style.display = 'none';
+            document.getElementById('calRangeDisplay').textContent = '';
+            renderCalendar();
+        }
+
+        function updateRangeDisplay() {
+            var el = document.getElementById('calRangeDisplay');
+            if (calRangeStart && calRangeEnd) {
+                el.textContent = '已选：' + calRangeStart + ' 至 ' + calRangeEnd;
+            } else if (calRangeStart) {
+                el.textContent = '开始：' + calRangeStart + '（请选择结束日期）';
+            } else {
+                el.textContent = '';
+            }
+        }
+
+        function syncCheckboxesToState() {
+            var opts = document.querySelectorAll('#calFilterOptions input[type=checkbox]');
+            opts.forEach(function(cb) {
+                // 默认 anyTurn 已选中
+                var modes = calFilterModes.length > 0 ? calFilterModes : ['anyTurn'];
+                cb.checked = modes.indexOf(cb.value) >= 0;
+            });
+        }
+
+        function applyCalendarFilter() {
+            // 读取勾选项
+            var opts = document.querySelectorAll('#calFilterOptions input[type=checkbox]');
+            var selected = [];
+            opts.forEach(function(cb) { if (cb.checked) selected.push(cb.value); });
+            if (selected.length === 0) selected = ['anyTurn']; // 默认
+            calFilterModes = selected;
+            activeDateFrom = calRangeStart;
+            activeDateTo = calRangeEnd;
+            activeDateFilterModes = selected;
+            applyFilters();
+            document.getElementById('calendarPanel').classList.remove('visible');
+            updateDateActiveToggle();
+        }
+
+        function clearDateFilter() {
+            activeDateFrom = null; activeDateTo = null;
+            activeDateFilterModes = ['anyTurn'];
+            calFilterModes = ['anyTurn'];
+            calRangeStart = null; calRangeEnd = null; calRangeSelecting = false;
+            document.getElementById('calRangeDisplay').textContent = '';
+            document.getElementById('calActions').style.display = 'none';
+            renderCalendar();
+            updateDateActiveToggle();
+            applyFilters();
+        }
+
+        function updateDateActiveToggle() {
+            var btn = document.getElementById('dateActiveToggle');
+            if (activeDateFrom) {
+                var label = activeDateFrom === activeDateTo
+                    ? '&#128197; ' + activeDateFrom + ' ✕'
+                    : '&#128197; ' + activeDateFrom + ' ~ ' + activeDateTo + ' ✕';
+                btn.innerHTML = label;
+                btn.style.display = '';
+                btn.classList.add('active');
+            } else {
+                btn.style.display = 'none';
+                btn.classList.remove('active');
+            }
+        }
+
+        // ===== 过滤 =====
+        function applyFilters() {
+            vscode.postMessage({ type: 'requestSessions', filter: {
+                keyword: currentKeyword || undefined,
+                dateFrom: activeDateFrom || undefined,
+                dateTo: activeDateTo || undefined,
+                dateFilterModes: activeDateFrom ? activeDateFilterModes : undefined,
+                archiveMode: archiveMode,
+                sortBy: currentSortBy
+            }});
+        }
+
+        // ===== 渲染会话列表 =====
+        function renderSessions(sessions) {
+            var list = document.getElementById('sessionList');
+            var empty = document.getElementById('emptyState');
+            var stats = document.getElementById('stats');
+            if (sessions.length === 0) {
+                list.innerHTML = '';
+                empty.style.display = 'block';
+                stats.textContent = '没有找到匹配的记录';
+                return;
+            }
+            empty.style.display = 'none';
+            var totalTurns = sessions.reduce(function(sum, s) { return sum + s.turns.length; }, 0);
+            stats.textContent = '共 ' + sessions.length + ' 个对话，' + totalTurns + ' 条提问';
+            list.innerHTML = sessions.map(function(session) {
+                var sid = session.sessionId;
+                var startDate = formatDateTime(session.createdAt);
+                var updateDate = formatDateTime(session.updatedAt);
+                var archivedTag = session.archived ? '<span class="session-badge" style="background:#555;">已归档</span>' : '';
+                var noteHtml = session.note ? '<div class="session-note">&#128221; ' + escapeHtml(session.note) + '</div>' : '';
+                var archiveLabel = session.archived ? '取消归档' : '归档';
+                var archiveIcon = session.archived ? '&#128228;' : '&#128230;';
+                // 置顶角标
+                var pinBadge = '';
+                var pinBtn = '';
+                if (session.pinType === 'global') {
+                    pinBadge = '<span class="pin-badge global">📌全局</span>';
+                    pinBtn = '<button class="action-btn" data-action="unpin" data-session-id="' + escHtml(sid) + '" title="取消置顶">&#128204;</button>';
+                } else if (session.pinType === 'local') {
+                    pinBadge = '<span class="pin-badge">📌</span>';
+                    pinBtn = '<button class="action-btn" data-action="unpin" data-session-id="' + escHtml(sid) + '" title="取消置顶">&#128204;</button>';
+                } else {
+                    pinBtn = '<button class="action-btn" data-action="pin" data-session-id="' + escHtml(sid) + '" title="置顶">&#128204;</button>';
+                }
+                return '<li class="session-item" data-session-id="' + escHtml(sid) + '">' +
+                    '<div class="session-header">' +
+                        '<span class="arrow">&#9658;</span>' +
+                        '<div class="session-info">' +
+                            '<div class="session-title">' + pinBadge + escapeHtml(session.title) + '</div>' +
+                            '<div class="session-meta">' +
+                                '<span title="创建时间">&#9200; ' + startDate + '</span>' +
+                                '<span title="最后更新">&#8635; ' + updateDate + '</span>' +
+                                '<span>' + session.turns.length + ' 条提问</span>' +
+                                archivedTag +
+                            '</div>' +
+                            noteHtml +
+                        '</div>' +
+                        '<div class="session-actions">' +
+                            pinBtn +
+                            '<button class="action-btn" data-action="editNote" data-session-id="' + escHtml(sid) + '" title="备注">&#128221;</button>' +
+                            '<button class="action-btn" data-action="archive" data-session-id="' + escHtml(sid) + '" data-archive="' + (!session.archived) + '" title="' + archiveLabel + '">' + archiveIcon + '</button>' +
+                            '<button class="action-btn" data-action="delete" data-session-id="' + escHtml(sid) + '" title="删除">&#128465;</button>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="note-editor" data-note-type="session" data-session-id="' + escHtml(sid) + '">' +
+                        '<input type="text" value="' + escHtml(session.note || '') + '" placeholder="输入备注..." />' +
+                        '<button>保存</button>' +
+                    '</div>' +
+                    '<div class="turns-container" id="turns-' + escHtml(sid) + '"></div>' +
+                '</li>';
+            }).join('');
+        }
+
+        function renderTurns(session) {
+            var sid = session.sessionId;
+            return session.turns.map(function(turn) {
+                var tid = turn.id;
+                var timeStr = formatDateTime(turn.timestamp);
+                var noteHtml = turn.note ? '<div class="turn-note">&#128221; ' + escapeHtml(turn.note) + '</div>' : '';
+                return '<div class="turn-item" data-turn-id="' + escHtml(tid) + '">' +
+                    '<div class="turn-header">' +
+                        '<span class="arrow">&#9658;</span>' +
+                        '<div class="turn-question">' +
+                            '<div class="turn-question-text">&#128172; ' + escapeHtml(turn.userMessage) + '</div>' +
+                            '<div class="turn-meta">&#128336; ' + timeStr + ' &nbsp;·&nbsp; ' + turn.responses.length + ' 条回复</div>' +
+                            noteHtml +
+                        '</div>' +
+                        '<div class="turn-actions">' +
+                            '<button class="action-btn" data-action="editTurnNote" data-session-id="' + escHtml(sid) + '" data-turn-id="' + escHtml(tid) + '" title="备注">&#128221;</button>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="note-editor" data-note-type="turn" data-session-id="' + escHtml(sid) + '" data-turn-id="' + escHtml(tid) + '">' +
+                        '<input type="text" value="' + escHtml(turn.note || '') + '" placeholder="输入提问备注..." />' +
+                        '<button>保存</button>' +
+                    '</div>' +
+                    '<div class="turn-content" id="content-' + escHtml(sid) + '-' + escHtml(tid) + '">' +
+                        '<div class="response-item" style="border-left-color:#e8a838;">' +
+                            '<div class="response-role">&#129489; 提问 <span style="font-weight:normal;opacity:0.6;margin-left:6px;">&#128336; ' + timeStr + '</span></div>' +
+                            '<div class="response-text">' + escapeHtml(turn.userMessage) + '</div>' +
+                        '</div>' +
+                        turn.responses.map(function(r) {
+                            var respTime = r.timestamp ? '&#128336; ' + formatDateTime(r.timestamp) : '';
+                            return '<div class="response-item">' +
+                                '<div class="response-role">&#129302; 回复' + (respTime ? ' <span style="font-weight:normal;opacity:0.6;margin-left:6px;">' + respTime + '</span>' : '') + '</div>' +
+                                '<div class="response-text">' + escapeHtml(r.content) + '</div>' +
+                            '</div>';
+                        }).join('') +
+                    '</div>' +
+                '</div>';
+            }).join('');
+        }
+
+        function renderFullTurns(sessionId, turns) {
+            var container = document.getElementById('turns-' + sessionId);
+            if (!container) return;
+            var session = allSessions.find(function(s) { return s.sessionId === sessionId; });
+            if (session) { session.turns = turns; container.innerHTML = renderTurns(session); }
+        }
+
+        // ===== Anderson02 =====
+        function toggleSession(header, sessionId) {
+            var arrow = header.querySelector('.arrow');
+            var container = document.getElementById('turns-' + sessionId);
+            if (!container) return;
+            var isExpanded = container.classList.contains('visible');
+            if (isExpanded) {
+                container.classList.remove('visible');
+                arrow.classList.remove('expanded');
+                header.classList.remove('expanded');
+            } else {
+                container.classList.add('visible');
+                arrow.classList.add('expanded');
+                header.classList.add('expanded');
+                if (container.innerHTML.trim() === '') {
+                    var session = allSessions.find(function(s) { return s.sessionId === sessionId; });
+                    if (session) { container.innerHTML = renderTurns(session); }
+                }
+                vscode.postMessage({ type: 'requestTurns', sessionId: sessionId });
+            }
+        }
+
+        function toggleTurn(header, sessionId, turnId) {
+            var arrow = header.querySelector('.arrow');
+            var content = document.getElementById('content-' + sessionId + '-' + turnId);
+            if (!content) return;
+            if (content.classList.contains('visible')) {
+                content.classList.remove('visible');
+                arrow.classList.remove('expanded');
+            } else {
+                content.classList.add('visible');
+                arrow.classList.add('expanded');
+            }
+        }
+
+        // ===== 操作 =====
+        function editNote(sessionId) {
+            var editor = document.querySelector('.note-editor[data-note-type="session"][data-session-id="' + sessionId + '"]');
+            if (!editor) return;
+            editor.classList.toggle('visible');
+            if (editor.classList.contains('visible')) { editor.querySelector('input').focus(); }
+        }
+
+        function saveNote(sessionId, note, editor) {
+            vscode.postMessage({ type: 'updateNote', sessionId: sessionId, note: note });
+            var session = allSessions.find(function(s) { return s.sessionId === sessionId; });
+            if (session) { session.note = note; }
+            editor.classList.remove('visible');
+            showToast('备注已保存');
+        }
+
+        function editTurnNote(sessionId, turnId) {
+            var editor = document.querySelector('.note-editor[data-note-type="turn"][data-session-id="' + sessionId + '"][data-turn-id="' + turnId + '"]');
+            if (!editor) return;
+            editor.classList.toggle('visible');
+            if (editor.classList.contains('visible')) { editor.querySelector('input').focus(); }
+        }
+
+        function saveTurnNote(sessionId, turnId, note, editor) {
+            vscode.postMessage({ type: 'updateNote', sessionId: sessionId, turnId: turnId, note: note });
+            editor.classList.remove('visible');
+            showToast('备注已保存');
+        }
+
+        function archiveSession(sessionId, archive) {
+            vscode.postMessage({ type: archive ? 'archiveSession' : 'unarchiveSession', sessionId: sessionId });
+        }
+
+        // ===== 置顶 =====
+        var _pinMenuEl = null;
+        function showPinMenu(sessionId, anchorBtn) {
+            // 关闭已有菜单
+            if (_pinMenuEl) { _pinMenuEl.remove(); _pinMenuEl = null; }
+            var menu = document.createElement('div');
+            menu.style.cssText = 'position:fixed;z-index:9999;background:var(--vscode-menu-background,var(--input-bg));' +
+                'border:1px solid var(--border);border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,0.3);min-width:160px;overflow:hidden;';
+            var itemStyle = 'display:block;width:100%;padding:7px 14px;font-size:12px;background:transparent;border:none;' +
+                'color:var(--fg);cursor:pointer;text-align:left;';
+            menu.innerHTML =
+                '<button style="' + itemStyle + '" id="_pinLocal">📌 置顶到当前列表</button>' +
+                '<button style="' + itemStyle + '" id="_pinGlobal">📌 完全置顶（含归档）</button>';
+            document.body.appendChild(menu);
+            _pinMenuEl = menu;
+            // 定位到按钮下方
+            var rect = anchorBtn.getBoundingClientRect();
+            menu.style.top = (rect.bottom + 2) + 'px';
+            menu.style.left = Math.max(0, rect.right - 160) + 'px';
+            menu.querySelector('#_pinLocal').addEventListener('click', function() {
+                vscode.postMessage({ type: 'pinSession', sessionId: sessionId, pinType: 'local' });
+                menu.remove(); _pinMenuEl = null;
+            });
+            menu.querySelector('#_pinGlobal').addEventListener('click', function() {
+                vscode.postMessage({ type: 'pinSession', sessionId: sessionId, pinType: 'global' });
+                menu.remove(); _pinMenuEl = null;
+            });
+            // 点击其他地方关闭
+            setTimeout(function() {
+                document.addEventListener('click', function close() {
+                    if (_pinMenuEl) { _pinMenuEl.remove(); _pinMenuEl = null; }
+                    document.removeEventListener('click', close);
+                });
+            }, 10);
+        }
+
+        function unpinSession(sessionId) {
+            vscode.postMessage({ type: 'unpinSession', sessionId: sessionId });
+        }
+
+        function deleteSession(sessionId) {
+            if (confirm('确定删除这个对话？')) {
+                vscode.postMessage({ type: 'deleteSession', sessionId: sessionId });
+            }
+        }
+
+        // ===== 日历 =====
+        function renderCalendar() {
+            var year = calendarDate.getFullYear();
+            var month = calendarDate.getMonth();
+            document.getElementById('calendarTitle').textContent = year + '年' + (month + 1) + '月';
+            var grid = document.getElementById('calendarGrid');
+            var days = ['日','一','二','三','四','五','六'];
+            var html = days.map(function(d) { return '<div class="day-header">' + d + '</div>'; }).join('');
+            var first = new Date(year, month, 1);
+            var last = new Date(year, month + 1, 0);
+            var today = new Date().toISOString().split('T')[0];
+            var rs = calRangeStart; var re = calRangeEnd;
+            for (var i = 0; i < first.getDay(); i++) { html += '<div class="day other-month"></div>'; }
+            for (var d = 1; d <= last.getDate(); d++) {
+                var dateStr = year + '-' + pad(month + 1) + '-' + pad(d);
+                var cls = 'day';
+                if (sessionDates.has(dateStr)) cls += ' has-data';
+                if (dateStr === today) cls += ' today';
+                if (rs && re) {
+                    if (dateStr === rs) cls += ' range-start';
+                    else if (dateStr === re) cls += ' range-end';
+                    else if (dateStr > rs && dateStr < re) cls += ' in-range';
+                } else if (rs && dateStr === rs) {
+                    cls += ' range-start range-end';
+                }
+                html += '<div class="' + cls + '" data-date="' + dateStr + '">' + d + '</div>';
+            }
+            grid.innerHTML = html;
+        }
+
+        // ===== 工具函数 =====
+        function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+        function formatDate(ts) {
+            if (!ts) return '';
+            var d = new Date(ts);
+            return isNaN(d.getTime()) ? '' : d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+        }
+
+        function formatTime(ts) {
+            if (!ts) return '';
+            var d = new Date(ts);
+            return isNaN(d.getTime()) ? '' : pad(d.getHours()) + ':' + pad(d.getMinutes());
+        }
+
+        function formatDateTime(ts) {
+            if (!ts) return '';
+            var d = new Date(ts);
+            if (isNaN(d.getTime())) return '';
+            return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) +
+                   ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        // 用于 data-* 属性值（只需要转义引号）
+        function escHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+        }
+
+        function debounce(fn, ms) {
+            var timer;
+            return function() { clearTimeout(timer); timer = setTimeout(fn, ms); };
+        }
+
+        function showToast(msg) {
+            var toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.add('visible');
+            setTimeout(function() { toast.classList.remove('visible'); }, 2000);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,70 @@
+{
+  "name": "copilot-history-viewer",
+  "displayName": "Copilot Chat History Viewer",
+  "description": "结构化浏览和管理 GitHub Copilot Chat 的聊天历史记录",
+  "version": "0.0.1",
+  "publisher": "local-dev",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "copilot-history",
+          "title": "Chat History",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "copilot-history": [
+        {
+          "type": "webview",
+          "id": "copilotHistoryView",
+          "name": "聊天记录"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "copilotHistory.refresh",
+        "title": "刷新聊天记录",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "copilotHistory.openSettings",
+        "title": "打开设置",
+        "icon": "$(gear)"
+      }
+    ],
+    "configuration": {
+      "title": "Copilot History Viewer",
+      "properties": {
+        "copilotHistoryViewer.customStoragePath": {
+          "type": "string",
+          "default": "",
+          "description": "自定义 Copilot Chat 历史数据路径（留空使用默认路径）"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "npx @vscode/vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.22.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "pako": "^2.1.0"
+  }
+}
