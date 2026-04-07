@@ -502,6 +502,29 @@ export class DataStorageService {
         this.saveMetadata();
     }
 
+    getGlobalStoragePath(): string {
+        return this.globalStoragePath;
+    }
+
+    getRawMetadata(): string {
+        try {
+            if (fs.existsSync(this.metadataPath)) {
+                return fs.readFileSync(this.metadataPath, 'utf-8');
+            }
+        } catch { }
+        return JSON.stringify({ version: '1.0.0', pinOrder: [], sessions: {} }, null, 2);
+    }
+
+    applyRawMetadata(content: string): void {
+        try {
+            const parsed = JSON.parse(content);
+            fs.writeFileSync(this.metadataPath, JSON.stringify(parsed, null, 2), 'utf-8');
+            this.metadata = parsed;
+        } catch (e) {
+            console.error('Failed to apply remote metadata:', e);
+        }
+    }
+
     editTurnContent(sessionId: string, turnId: string, content: string): void {
         if (!this.metadata.sessions[sessionId]) {
             this.metadata.sessions[sessionId] = { turns: {} };

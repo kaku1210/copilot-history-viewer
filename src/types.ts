@@ -74,13 +74,31 @@ export type WebviewMessage =
     | { type: 'editTurnContent'; sessionId: string; turnId: string; content: string }
     | { type: 'pinSession'; sessionId: string; pinType: PinType }
     | { type: 'unpinSession'; sessionId: string }
-    | { type: 'refresh' };
+    | { type: 'refresh' }
+    | { type: 'gitPush' }
+    | { type: 'gitPull' }
+    | { type: 'saveGitConfig'; config: GitSyncConfig }
+    | { type: 'getGitConfig' }
+    | { type: 'openSettings' };
 
 export type ExtensionMessage =
     | { type: 'sessionsData'; sessions: ChatSession[] }
     | { type: 'turnsData'; sessionId: string; turns: ChatTurn[] }
     | { type: 'updateSuccess'; message: string }
-    | { type: 'error'; message: string };
+    | { type: 'error'; message: string }
+    | { type: 'gitConfigData'; config: GitSyncConfig | null }
+    | { type: 'gitSyncStatus'; status: 'syncing' | 'success' | 'error'; message: string };
+
+/**
+ * GitHub 同步配置
+ */
+export interface GitSyncConfig {
+    repoUrl: string;       // https://github.com/user/private-repo.git
+    token: string;         // Personal Access Token
+    branch: string;        // 默认 main
+    autoSync: boolean;     // 自动拉取（启动时）
+    autoCommit: boolean;   // 自动提交（数据变更时）
+}
 
 /**
  * 对话过滤条件

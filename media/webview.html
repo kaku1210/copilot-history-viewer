@@ -116,6 +116,29 @@
         @keyframes spin { to { transform: rotate(360deg); } }
         .toast { position: fixed; bottom: 20px; right: 20px; padding: 8px 16px; background: var(--btn-bg); color: var(--btn-fg); border-radius: 4px; font-size: 12px; z-index: 1000; opacity: 0; transform: translateY(10px); transition: all 0.3s; }
         .toast.visible { opacity: 1; transform: translateY(0); }
+
+        /* ===== GitHub 同步面板 ===== */
+        .sync-panel { display: none; padding: 10px; border-bottom: 1px solid var(--border); background: var(--bg); }
+        .sync-panel.visible { display: block; }
+        .sync-section-title { font-size: 12px; font-weight: bold; margin-bottom: 8px; opacity: 0.8; }
+        .sync-field { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
+        .sync-field label { font-size: 11px; opacity: 0.6; }
+        .sync-field input[type=text], .sync-field input[type=password] { padding: 4px 7px; background: var(--input-bg); color: var(--input-fg); border: 1px solid var(--input-border); border-radius: 3px; font-size: 11px; outline: none; }
+        .sync-field input:focus { border-color: var(--accent); }
+        .sync-toggle-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 11px; }
+        .sync-toggle-row input[type=checkbox] { cursor: pointer; }
+        .sync-btn-row { display: flex; gap: 6px; margin-top: 8px; }
+        .sync-btn { flex: 1; font-size: 11px; padding: 5px 8px; border: none; border-radius: 3px; cursor: pointer; }
+        .sync-btn.primary { background: var(--btn-bg); color: var(--btn-fg); }
+        .sync-btn.secondary { background: var(--input-bg); color: var(--fg); border: 1px solid var(--input-border); }
+        .sync-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .sync-status { margin-top: 8px; font-size: 11px; padding: 5px 8px; border-radius: 3px; display: none; }
+        .sync-status.syncing { display: block; background: rgba(0,122,204,0.15); color: var(--accent); }
+        .sync-status.success { display: block; background: rgba(0,180,0,0.12); color: #4ec94e; }
+        .sync-status.error { display: block; background: rgba(220,0,0,0.12); color: #f44; }
+        .sync-divider { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
+        .sync-action-row { display: flex; gap: 6px; }
+        .sync-action-row .sync-btn { flex: 1; }
     </style>
 </head>
 <body>
@@ -124,6 +147,7 @@
             <input class="search-input" id="searchInput" type="text" placeholder="搜索对话内容..." />
             <button class="icon-btn" id="calendarBtn" title="按日期筛选">&#128197;<span class="btn-label">日期</span></button>
             <button class="icon-btn" id="refreshBtn" title="刷新数据">&#128260;<span class="btn-label">刷新</span></button>
+            <button class="icon-btn" id="syncBtn" title="GitHub 同步">&#9729;<span class="btn-label">同步</span></button>
         </div>
         <div class="filter-row">
             <select id="archiveSelect" style="font-size:11px;padding:3px 6px;background:var(--input-bg);color:var(--fg);border:1px solid var(--input-border);border-radius:3px;cursor:pointer;">
@@ -169,6 +193,40 @@
             <button class="cal-clear-btn" id="calClearBtn">清除</button>
         </div>
     </div>
+    <!-- GitHub 同步面板 -->
+    <div class="sync-panel" id="syncPanel">
+        <div class="sync-section-title">☁️ GitHub 私有仓库同步</div>
+        <div class="sync-field">
+            <label>仓库地址（HTTPS）</label>
+            <input type="text" id="syncRepoUrl" placeholder="https://github.com/you/private-repo.git" />
+        </div>
+        <div class="sync-field">
+            <label>Personal Access Token</label>
+            <input type="password" id="syncToken" placeholder="ghp_xxxxxxxxxxxx" />
+        </div>
+        <div class="sync-field">
+            <label>分支名</label>
+            <input type="text" id="syncBranch" placeholder="main" value="main" />
+        </div>
+        <div class="sync-toggle-row">
+            <input type="checkbox" id="syncAutoSync" />
+            <label for="syncAutoSync">启动时自动拉取</label>
+        </div>
+        <div class="sync-toggle-row">
+            <input type="checkbox" id="syncAutoCommit" />
+            <label for="syncAutoCommit">数据变更时自动推送</label>
+        </div>
+        <div class="sync-btn-row">
+            <button class="sync-btn primary" id="syncSaveBtn">保存配置并验证</button>
+        </div>
+        <hr class="sync-divider" />
+        <div class="sync-action-row">
+            <button class="sync-btn secondary" id="syncPushBtn">⬆️ 推送到远端</button>
+            <button class="sync-btn secondary" id="syncPullBtn">⬇️ 从远端拉取</button>
+        </div>
+        <div class="sync-status" id="syncStatus"></div>
+    </div>
+
     <div class="stats" id="stats">加载中...</div>
     <ul class="session-list" id="sessionList"></ul>
     <div class="empty-state" id="emptyState" style="display:none;">
@@ -223,6 +281,10 @@
                 if (document.getElementById('calendarPanel').classList.contains('visible')) { renderCalendar(); }
             } else if (msg.type === 'turnsData') {
                 renderFullTurns(msg.sessionId, msg.turns);
+            } else if (msg.type === 'gitConfigData') {
+                fillGitConfig(msg.config);
+            } else if (msg.type === 'gitSyncStatus') {
+                showSyncStatus(msg.status, msg.message);
             } else if (msg.type === 'updateSuccess') {
                 showToast(msg.message);
             } else if (msg.type === 'error') {
@@ -246,6 +308,53 @@
             currentSortBy = this.value;
             applyFilters();
         });
+        // ===== 同步面板 =====
+        document.getElementById('syncBtn').addEventListener('click', function() {
+            var panel = document.getElementById('syncPanel');
+            panel.classList.toggle('visible');
+            if (panel.classList.contains('visible')) {
+                vscode.postMessage({ type: 'getGitConfig' });
+            }
+        });
+        document.getElementById('syncSaveBtn').addEventListener('click', function() {
+            var config = readGitConfigForm();
+            if (!config.repoUrl || !config.token) {
+                showSyncStatus('error', '仓库地址和 Token 不能为空');
+                return;
+            }
+            showSyncStatus('syncing', '正在验证连接...');
+            vscode.postMessage({ type: 'saveGitConfig', config: config });
+        });
+        document.getElementById('syncPushBtn').addEventListener('click', function() {
+            vscode.postMessage({ type: 'gitPush' });
+        });
+        document.getElementById('syncPullBtn').addEventListener('click', function() {
+            vscode.postMessage({ type: 'gitPull' });
+        });
+
+        function readGitConfigForm() {
+            return {
+                repoUrl: document.getElementById('syncRepoUrl').value.trim(),
+                token: document.getElementById('syncToken').value.trim(),
+                branch: document.getElementById('syncBranch').value.trim() || 'main',
+                autoSync: document.getElementById('syncAutoSync').checked,
+                autoCommit: document.getElementById('syncAutoCommit').checked,
+            };
+        }
+        function fillGitConfig(config) {
+            if (!config) return;
+            document.getElementById('syncRepoUrl').value = config.repoUrl || '';
+            document.getElementById('syncToken').value = config.token || '';
+            document.getElementById('syncBranch').value = config.branch || 'main';
+            document.getElementById('syncAutoSync').checked = !!config.autoSync;
+            document.getElementById('syncAutoCommit').checked = !!config.autoCommit;
+        }
+        function showSyncStatus(status, message) {
+            var el = document.getElementById('syncStatus');
+            el.className = 'sync-status ' + status;
+            el.textContent = message;
+        }
+
         document.getElementById('refreshBtn').addEventListener('click', function() {
             // 刷新：清空搜索词，保留其他状态
             currentKeyword = '';

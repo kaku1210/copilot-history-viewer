@@ -3,17 +3,21 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { DataStorageService } from './dataStorage';
+import { GitSyncService } from './gitSyncService';
 import { WebviewMessage, SessionFilter } from './types';
 
 export class HistoryWebviewProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'copilotHistoryView';
     private _view?: vscode.WebviewView;
     private _lastFilter?: SessionFilter;
+    private _gitSync: GitSyncService;
 
     constructor(
         private readonly extensionUri: vscode.Uri,
         private readonly dataService: DataStorageService,
-    ) { }
+    ) {
+        this._gitSync = new GitSyncService(dataService.getGlobalStoragePath());
+    }
 
     public resolveWebviewView(
         webviewView: vscode.WebviewView,
@@ -88,8 +92,71 @@ export class HistoryWebviewProvider implements vscode.WebviewViewProvider {
                     await this.sendSessionsToWebview(this._lastFilter);
                     this.postMessage({ type: 'updateSuccess', message: '已取消置顶' });
                     break;
+
+                case 'getGitConfig':
+                    this.postMessage({ type: 'gitConfigData', config: this._gitSync.getConfig() });
+                    break;
+
+                case 'saveGitConfig':
+                    this._gitSync.saveConfig(message.config);
+                    // 验证连接
+                    const testResult = await this._gitSync.testConnection();
+                    this.postMessage({ type: 'gitSyncStatus', status: testResult.ok ? 'success' : 'error', message: testResult.message });
+                    break;
+
+                case 'gitPush': {
+                    if (!this._gitSync.isConfigured()) {
+                        this.postMessage({ type: 'gitSyncStatus', status: 'error', message: '请先配置 GitHub 私有仓库' });
+                        break;
+                    }
+                    this.postMessage({ type: 'gitSyncStatus', status: 'syncing', message: '正在推送...' });
+                    try {
+                        const metaContent = this.dataService.getRawMetadata();
+                        const sessions = await this.dataService.getSessions({ archiveMode: 'all' });
+                        await this._gitSync.push(metaContent, sessions, (msg) => {
+                            this.postMessage({ type: 'gitSyncStatus', status: 'syncing', message: msg });
+                        });
+                        this.postMessage({ type: 'gitSyncStatus', status: 'success', message: '✅ 推送成功' });
+                    } catch (e: any) {
+                        this.postMessage({ type: 'gitSyncStatus', status: 'error', message: '❌ ' + (e.message || '推送失败') });
+                    }
+                    break;
+                }
+
+                case 'gitPull': {
+                    if (!this._gitSync.isConfigured()) {
+                        this.postMessage({ type: 'gitSyncStatus', status: 'error', message: '请先配置 GitHub 私有仓库' });
+                        break;
+                    }
+                    this.postMessage({ type: 'gitSyncStatus', status: 'syncing', message: '正在拉取...' });
+                    try {
+                        const content = await this._gitSync.pull((msg) => {
+                            this.postMessage({ type: 'gitSyncStatus', status: 'syncing', message: msg });
+                        });
+                        if (content) {
+                            this.dataService.applyRawMetadata(content);
+                            await this.sendSessionsToWebview(this._lastFilter);
+                            this.postMessage({ type: 'gitSyncStatus', status: 'success', message: '✅ 拉取成功，数据已更新' });
+                        } else {
+                            this.postMessage({ type: 'gitSyncStatus', status: 'success', message: '远端暂无数据' });
+                        }
+                    } catch (e: any) {
+                        this.postMessage({ type: 'gitSyncStatus', status: 'error', message: '❌ ' + (e.message || '拉取失败') });
+                    }
+                    break;
+                }
             }
         });
+
+        // 自动拉取
+        const cfg = this._gitSync.getConfig();
+        if (cfg?.autoSync && this._gitSync.isConfigured()) {
+            this._gitSync.pull().then(content => {
+                if (content) {
+                    this.dataService.applyRawMetadata(content);
+                }
+            }).catch(() => {});
+        }
     }
 
     public async refresh() {
