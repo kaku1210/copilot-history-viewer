@@ -198,7 +198,10 @@
                 <option value="updatedAt">按更新时间</option>
                 <option value="createdAt">按创建时间</option>
             </select>
-            <button id="sortDirBtn" title="切换升序/降序" style="font-size:12px;padding:2px 7px;background:var(--input-bg);color:var(--fg);border:1px solid var(--input-border);border-radius:3px;cursor:pointer;line-height:1.4;" >↓新→旧</button>
+            <button id="sortDirBtn" title="切换升序/降序" style="padding:2px 6px;background:var(--input-bg);border:1px solid var(--input-border);border-radius:3px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:0;line-height:1;">
+                <span id="sortArrowUp" style="font-size:10px;line-height:1.2;color:var(--fg);opacity:0.35;">▲</span>
+                <span id="sortArrowDown" style="font-size:10px;line-height:1.2;color:var(--accent);opacity:1;">▼</span>
+            </button>
             <button class="toggle-btn" id="dateActiveToggle" style="display:none;"></button>
         </div>
     </div>
@@ -384,11 +387,26 @@
             currentSortBy = this.value;
             applyFilters();
         });
+        function updateSortDirBtn() {
+            var up = document.getElementById('sortArrowUp');
+            var down = document.getElementById('sortArrowDown');
+            if (currentSortDir === 'asc') {
+                // 升序（旧→新）：▲ 高亮，▼ 暗淡
+                up.style.opacity = '1';
+                up.style.color = 'var(--accent)';
+                down.style.opacity = '0.3';
+                down.style.color = 'var(--fg)';
+            } else {
+                // 降序（新→旧）：▼ 高亮，▲ 暗淡
+                down.style.opacity = '1';
+                down.style.color = 'var(--accent)';
+                up.style.opacity = '0.3';
+                up.style.color = 'var(--fg)';
+            }
+        }
         document.getElementById('sortDirBtn').addEventListener('click', function() {
             currentSortDir = currentSortDir === 'desc' ? 'asc' : 'desc';
-            this.textContent = currentSortDir === 'desc' ? '↓新→旧' : '↑旧→新';
-            this.style.color = currentSortDir === 'asc' ? 'var(--accent)' : 'var(--fg)';
-            this.style.borderColor = currentSortDir === 'asc' ? 'var(--accent)' : 'var(--input-border)';
+            updateSortDirBtn();
             applyFilters();
         });
         // ===== 面板互斥开关 =====
