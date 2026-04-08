@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import * as os from 'os';
 import * as https from 'https';
-import { execFile, spawn } from 'child_process';
+import { execFile } from 'child_process';
 import { DataStorageService } from './dataStorage';
 import { GitSyncService } from './gitSyncService';
 import { checkForUpdate } from './updateChecker';
@@ -39,43 +39,13 @@ async function downloadVsix(url: string, onProgress?: (msg: string) => void): Pr
     });
 }
 
-/** 用 VS Code CLI 安装 .vsix（detached 模式，防止在 VS Code 内部调用时卡死） */
+/** 用 VS Code 内置 API 安装 .vsix，无需调用外部 CLI */
 async function installVsix(vsixPath: string): Promise<void> {
-    // 按优先级查找 code.cmd 路径
-    const codeCandidates = [
-        path.join(process.env['LOCALAPPDATA'] || '', 'Programs', 'Microsoft VS Code', 'bin', 'code.cmd'),
-        process.execPath.replace(/[Cc]ode\.exe$/i, 'bin\\code.cmd'),
-        'code.cmd',
-        'code',
-    ];
-    const codeExe = codeCandidates.find(p => {
-        try { return p !== 'code.cmd' && p !== 'code' && fs.existsSync(p); } catch { return false; }
-    }) || codeCandidates[2];
-
-    return new Promise((resolve, reject) => {
-        // detached + unref：子进程独立运行，不阻塞父进程
-        const child = spawn(codeExe, ['--install-extension', vsixPath, '--force'], {
-            detached: true,
-            stdio: 'ignore',
-            shell: true,
-            windowsHide: true,
-        });
-        child.unref();
-
-        // 给 3 秒等子进程启动，之后无论如何都返回成功
-        // （实际安装会在后台继续，VS Code 会自动提示重载）
-        const timer = setTimeout(() => resolve(), 3000);
-
-        child.on('error', (err) => {
-            clearTimeout(timer);
-            reject(new Error('启动安装进程失败: ' + err.message + '\n请手动安装: ' + vsixPath));
-        });
-        child.on('close', (code) => {
-            clearTimeout(timer);
-            if (code === 0 || code === null) { resolve(); }
-            else { reject(new Error(`安装退出码: ${code}\n请手动安装: ${vsixPath}`)); }
-        });
-    });
+    // 直接使用 VS Code 内置命令安装本地 vsix，完全绕开 CLI 子进程问题
+    await vscode.commands.executeCommand(
+        'workbench.extensions.installExtension',
+        vscode.Uri.file(vsixPath)
+    );
 }
 
 export class HistoryWebviewProvider implements vscode.WebviewViewProvider {
