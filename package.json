@@ -2,8 +2,13 @@
   "name": "copilot-history-viewer",
   "displayName": "Copilot Chat History Viewer",
   "description": "结构化浏览和管理 GitHub Copilot Chat 的聊天历史记录",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "publisher": "local-dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kaku1210/copilot-history-viewer"
+  },
+  "homepage": "https://github.com/kaku1210/copilot-history-viewer",
   "engines": {
     "vscode": "^1.85.0"
   },

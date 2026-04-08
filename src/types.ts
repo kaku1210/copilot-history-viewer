@@ -80,7 +80,9 @@ export type WebviewMessage =
     | { type: 'gitPull' }
     | { type: 'saveGitConfig'; config: GitSyncConfig }
     | { type: 'getGitConfig' }
-    | { type: 'openSettings' };
+    | { type: 'openSettings' }
+    | { type: 'checkUpdate' }
+    | { type: 'openUrl'; url: string };
 
 export type ExtensionMessage =
     | { type: 'sessionsData'; sessions: ChatSession[] }
@@ -88,7 +90,8 @@ export type ExtensionMessage =
     | { type: 'updateSuccess'; message: string }
     | { type: 'error'; message: string }
     | { type: 'gitConfigData'; config: GitSyncConfig | null }
-    | { type: 'gitSyncStatus'; status: 'syncing' | 'success' | 'error'; message: string };
+    | { type: 'gitSyncStatus'; status: 'syncing' | 'success' | 'error'; message: string }
+    | { type: 'updateInfo'; hasUpdate: boolean; currentVersion: string; latestVersion: string; releasesUrl: string; vsixUrl: string };
 
 /**
  * GitHub 同步配置

@@ -122,6 +122,20 @@
         .cloud-badge { background: #1a6a9a !important; color: #7ecfff !important; }
         .session-item[data-source="cloud"] .session-header { border-left: 2px solid #1a6a9a; }
 
+        /* ===== 更新提示横幅 ===== */
+        .update-banner { display: none; padding: 8px 10px; background: rgba(255,165,0,0.12); border-bottom: 1px solid #b8860b; font-size: 11px; }
+        .update-banner.visible { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .update-banner-text { flex: 1; color: #e8a838; }
+        .update-banner-text strong { color: #ffc040; }
+        .update-btn { font-size: 11px; padding: 3px 10px; border: none; border-radius: 3px; cursor: pointer; white-space: nowrap; }
+        .update-btn.primary { background: #b8860b; color: #fff; }
+        .update-btn.secondary { background: var(--input-bg); color: var(--fg); border: 1px solid var(--input-border); }
+        .update-btn:hover { opacity: 0.85; }
+        /* 关于区域 */
+        .about-row { padding: 6px 10px 4px; font-size: 10px; opacity: 0.45; display: flex; gap: 10px; align-items: center; border-top: 1px solid var(--border); }
+        .about-row a { color: var(--accent); cursor: pointer; text-decoration: none; }
+        .about-row a:hover { text-decoration: underline; }
+
         /* ===== GitHub 同步面板 ===== */
         .sync-panel { display: none; padding: 10px; border-bottom: 1px solid var(--border); background: var(--bg); }
         .sync-panel.visible { display: block; }
@@ -232,6 +246,21 @@
         <div class="sync-status" id="syncStatus"></div>
     </div>
 
+    <!-- 更新提示横幅 -->
+    <div class="update-banner" id="updateBanner">
+        <div class="update-banner-text" id="updateBannerText"></div>
+        <button class="update-btn primary" id="updateDownloadBtn">⬇️ 下载新版本</button>
+        <button class="update-btn secondary" id="updateCheckBtn">🔍 检查更新</button>
+        <button class="update-btn secondary" id="updateDismissBtn">✕</button>
+    </div>
+    <!-- 关于 / 仓库信息 -->
+    <div class="about-row" id="aboutRow">
+        <span id="versionText">v?</span>
+        <a id="repoLink" data-url="https://github.com/kaku1210/copilot-history-viewer">GitHub 仓库</a>
+        <a id="releasesLink" data-url="https://github.com/kaku1210/copilot-history-viewer/releases">版本记录</a>
+        <button class="update-btn secondary" id="manualCheckBtn" style="padding:1px 7px;font-size:10px;">检查更新</button>
+    </div>
+
     <div class="stats" id="stats">加载中...</div>
     <ul class="session-list" id="sessionList"></ul>
     <div class="empty-state" id="emptyState" style="display:none;">
@@ -286,6 +315,8 @@
                 if (document.getElementById('calendarPanel').classList.contains('visible')) { renderCalendar(); }
             } else if (msg.type === 'turnsData') {
                 renderFullTurns(msg.sessionId, msg.turns);
+            } else if (msg.type === 'updateInfo') {
+                handleUpdateInfo(msg);
             } else if (msg.type === 'gitConfigData') {
                 fillGitConfig(msg.config);
             } else if (msg.type === 'gitSyncStatus') {
@@ -313,6 +344,45 @@
             currentSortBy = this.value;
             applyFilters();
         });
+        // ===== 更新横幅 =====
+        var _updateVsixUrl = '';
+        var _updateReleasesUrl = 'https://github.com/kaku1210/copilot-history-viewer/releases';
+
+        function handleUpdateInfo(msg) {
+            document.getElementById('versionText').textContent = 'v' + (msg.currentVersion || '?');
+            _updateVsixUrl = msg.vsixUrl || '';
+            _updateReleasesUrl = msg.releasesUrl || _updateReleasesUrl;
+            var banner = document.getElementById('updateBanner');
+            var bannerText = document.getElementById('updateBannerText');
+            if (msg.hasUpdate) {
+                bannerText.innerHTML = '&#127381; 有新版本可用：<strong>v' + msg.latestVersion + '</strong>（当前 v' + msg.currentVersion + '）';
+                banner.classList.add('visible');
+            } else if (msg.currentVersion !== '?') {
+                banner.classList.remove('visible');
+            }
+        }
+
+        document.getElementById('updateDownloadBtn').addEventListener('click', function() {
+            vscode.postMessage({ type: 'openUrl', url: _updateVsixUrl || _updateReleasesUrl });
+        });
+        document.getElementById('updateCheckBtn').addEventListener('click', function() {
+            document.getElementById('updateBannerText').textContent = '正在检查更新...';
+            vscode.postMessage({ type: 'checkUpdate' });
+        });
+        document.getElementById('updateDismissBtn').addEventListener('click', function() {
+            document.getElementById('updateBanner').classList.remove('visible');
+        });
+        document.getElementById('manualCheckBtn').addEventListener('click', function() {
+            document.getElementById('updateBannerText').textContent = '正在检查...';
+            document.getElementById('updateBanner').classList.add('visible');
+            vscode.postMessage({ type: 'checkUpdate' });
+        });
+        // 关于区域链接
+        document.getElementById('aboutRow').addEventListener('click', function(e) {
+            var a = e.target.closest('[data-url]');
+            if (a) { vscode.postMessage({ type: 'openUrl', url: a.dataset.url }); }
+        });
+
         // ===== 同步面板 =====
         document.getElementById('syncBtn').addEventListener('click', function() {
             var panel = document.getElementById('syncPanel');

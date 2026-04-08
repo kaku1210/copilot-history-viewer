@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { DataStorageService } from './dataStorage';
 import { GitSyncService } from './gitSyncService';
+import { checkForUpdate } from './updateChecker';
 import { WebviewMessage, SessionFilter } from './types';
 
 export class HistoryWebviewProvider implements vscode.WebviewViewProvider {
@@ -93,6 +94,14 @@ export class HistoryWebviewProvider implements vscode.WebviewViewProvider {
                     this.postMessage({ type: 'updateSuccess', message: '已取消置顶' });
                     break;
 
+                case 'checkUpdate':
+                    this._checkUpdateOnStartup(true);
+                    break;
+
+                case 'openUrl':
+                    vscode.env.openExternal(vscode.Uri.parse(message.url));
+                    break;
+
                 case 'getGitConfig':
                     this.postMessage({ type: 'gitConfigData', config: this._gitSync.getConfig() });
                     break;
@@ -157,6 +166,9 @@ export class HistoryWebviewProvider implements vscode.WebviewViewProvider {
             }
         });
 
+        // 启动时检查更新（异步，不阻塞）
+        this._checkUpdateOnStartup();
+
         // 自动拉取（启动时）
         const cfg = this._gitSync.getConfig();
         if (cfg?.autoSync && this._gitSync.isConfigured()) {
@@ -172,6 +184,28 @@ export class HistoryWebviewProvider implements vscode.WebviewViewProvider {
     public async refresh() {
         if (this._view) {
             await this.sendSessionsToWebview();
+        }
+    }
+
+    private async _checkUpdateOnStartup(manual = false) {
+        try {
+            // 从 package.json 读取当前版本
+            const pkgPath = path.join(this.extensionUri.fsPath, 'package.json');
+            const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+            const currentVersion: string = pkg.version || '0.0.0';
+            const info = await checkForUpdate(currentVersion);
+            this.postMessage({
+                type: 'updateInfo',
+                hasUpdate: info.hasUpdate,
+                currentVersion: info.currentVersion,
+                latestVersion: info.latestVersion,
+                releasesUrl: info.releasesUrl,
+                vsixUrl: info.vsixUrl,
+            });
+        } catch {
+            if (manual) {
+                this.postMessage({ type: 'updateInfo', hasUpdate: false, currentVersion: '?', latestVersion: '?', releasesUrl: '', vsixUrl: '' });
+            }
         }
     }
 
