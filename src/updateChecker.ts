@@ -1,9 +1,14 @@
 import * as https from 'https';
 
 const REPO = 'kaku1210/copilot-history-viewer';
-const RAW_PACKAGE_URL = `https://raw.githubusercontent.com/${REPO}/main/package.json`;
 const RELEASES_URL = `https://github.com/${REPO}/releases`;
 const VSIX_URL = `https://github.com/${REPO}/raw/main/copilot-history-viewer.vsix`;
+
+/** 获取带缓存破坏参数的 package.json URL，通过 GitHub API 读取（不经过 CDN 缓存） */
+function getPackageUrl(): string {
+    // 使用 GitHub Contents API，绕过 raw.githubusercontent.com 的 CDN 缓存
+    return `https://api.github.com/repos/${REPO}/contents/package.json`;
+}
 
 export interface UpdateInfo {
     hasUpdate: boolean;
@@ -58,7 +63,11 @@ export async function checkForUpdate(currentVersion: string): Promise<UpdateInfo
         vsixUrl: VSIX_URL,
     };
     try {
-        const pkg = await fetchJson(RAW_PACKAGE_URL);
+        // 使用 GitHub Contents API，返回 base64 编码的文件内容，不受 CDN 缓存影响
+        const apiResp = await fetchJson(getPackageUrl());
+        // apiResp.content 是 base64，需要解码后再 JSON.parse
+        const decoded = Buffer.from(apiResp.content, 'base64').toString('utf-8');
+        const pkg = JSON.parse(decoded);
         const latestVersion: string = pkg.version || currentVersion;
         base.latestVersion = latestVersion;
         base.hasUpdate = isNewer(latestVersion, currentVersion);
