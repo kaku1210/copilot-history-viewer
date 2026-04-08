@@ -103,6 +103,35 @@
         .turn-content { display: none; padding: 8px 8px 8px 28px; background: rgba(255,255,255,0.02); }
         .turn-content.visible { display: block; }
         .response-item { margin-bottom: 12px; padding: 8px; border-radius: 4px; background: rgba(255,255,255,0.03); border-left: 3px solid var(--accent); }
+
+        /* ===== Markdown 渲染样式 ===== */
+        .md-content { font-size: 12px; line-height: 1.6; }
+        .md-p { margin: 3px 0; }
+        .md-gap { height: 6px; }
+        .md-h1 { font-size: 14px; font-weight: bold; margin: 6px 0 3px; border-bottom: 1px solid var(--border); padding-bottom: 2px; }
+        .md-h2 { font-size: 13px; font-weight: bold; margin: 5px 0 2px; }
+        .md-h3 { font-size: 12px; font-weight: bold; margin: 4px 0 2px; }
+        .md-ul, .md-ol { margin: 3px 0 3px 16px; padding: 0; }
+        .md-ul li, .md-ol li { margin: 1px 0; }
+        .md-blockquote { border-left: 2px solid var(--accent); padding: 2px 8px; margin: 3px 0; opacity: 0.8; font-size: 11px; background: rgba(0,122,204,0.05); border-radius: 0 3px 3px 0; }
+        .md-inline-code { font-family: 'Consolas', 'Courier New', monospace; font-size: 11px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); border-radius: 3px; padding: 0 4px; color: #ce9178; }
+        .md-code-block { margin: 6px 0; border-radius: 4px; background: #1e1e1e; border: 1px solid var(--border); overflow: hidden; }
+        .md-code-lang { display: block; font-size: 10px; color: #858585; padding: 3px 8px 2px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.03); font-family: monospace; }
+        .md-code-block pre { margin: 0; padding: 8px; overflow-x: auto; }
+        .md-code-block code { font-family: 'Consolas', 'Courier New', monospace; font-size: 11px; color: #d4d4d4; white-space: pre; }
+        .md-link { color: var(--accent); text-decoration: none; }
+        .md-link:hover { text-decoration: underline; }
+        /* 工具调用折叠组 */
+        .md-tool-group { margin: 4px 0; border: 1px solid rgba(0,122,204,0.2); border-radius: 4px; overflow: hidden; }
+        .md-tool-summary { display: flex; align-items: center; gap: 5px; padding: 4px 8px; cursor: pointer; background: rgba(0,122,204,0.06); font-size: 11px; user-select: none; }
+        .md-tool-summary:hover { background: rgba(0,122,204,0.12); }
+        .md-tool-arrow { font-size: 9px; color: var(--accent); flex-shrink: 0; }
+        .md-tool-first { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .md-tool-count { color: var(--accent); opacity: 0.7; font-size: 10px; flex-shrink: 0; }
+        .md-tool-body { display: none; padding: 4px 8px 4px 20px; border-top: 1px solid rgba(0,122,204,0.15); }
+        .md-tool-body.open { display: block; }
+        .md-tool-line { font-size: 11px; padding: 2px 0; opacity: 0.85; border-bottom: 1px solid rgba(255,255,255,0.04); }
+        .md-tool-line:last-child { border-bottom: none; }
         .response-role { font-size: 10px; text-transform: uppercase; opacity: 0.5; margin-bottom: 4px; font-weight: bold; }
         .response-text { font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
         .note-editor { display: none; padding: 6px 8px; gap: 4px; }
@@ -897,13 +926,13 @@
                     '<div class="turn-content" id="content-' + escHtml(sid) + '-' + escHtml(tid) + '">' +
                         '<div class="response-item" style="border-left-color:#e8a838;">' +
                             '<div class="response-role">&#129489; 提问 <span style="font-weight:normal;opacity:0.6;margin-left:6px;">&#128336; ' + timeStr + '</span></div>' +
-                            '<div class="response-text">' + escapeHtml(turn.userMessage) + '</div>' +
+                            '<div class="response-text md-content">' + renderMarkdown(turn.userMessage) + '</div>' +
                         '</div>' +
                         turn.responses.map(function(r) {
                             var respTime = r.timestamp ? '&#128336; ' + formatDateTime(r.timestamp) : '';
                             return '<div class="response-item">' +
                                 '<div class="response-role">&#129302; 回复' + (respTime ? ' <span style="font-weight:normal;opacity:0.6;margin-left:6px;">' + respTime + '</span>' : '') + '</div>' +
-                                '<div class="response-text">' + escapeHtml(r.content) + '</div>' +
+                                '<div class="response-text md-content">' + renderMarkdown(r.content) + '</div>' +
                             '</div>';
                         }).join('') +
                     '</div>' +
@@ -1088,6 +1117,133 @@
         function escapeHtml(str) {
             if (!str) return '';
             return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        // ===== Markdown 渲染 =====
+        function renderMarkdown(raw) {
+            if (!raw) return '';
+            var lines = raw.split('\n');
+            var out = [];
+            var i = 0;
+
+            while (i < lines.length) {
+                var line = lines[i];
+
+                // ---- 代码块 ```lang ... ``` ----
+                if (/^```/.test(line)) {
+                    var lang = line.replace(/^```/, '').trim();
+                    var codeLines = [];
+                    i++;
+                    while (i < lines.length && !/^```/.test(lines[i])) {
+                        codeLines.push(escapeHtml(lines[i]));
+                        i++;
+                    }
+                    var langLabel = lang ? '<span class="md-code-lang">' + escapeHtml(lang) + '</span>' : '';
+                    out.push('<div class="md-code-block">' + langLabel + '<pre><code>' + codeLines.join('\n') + '</code></pre></div>');
+                    i++;
+                    continue;
+                }
+
+                // ---- 工具调用行组（连续的 "> 🔧/🔍/📖 ..." 折叠） ----
+                if (/^>\s/.test(line)) {
+                    var toolLines = [];
+                    while (i < lines.length && /^>\s/.test(lines[i])) {
+                        toolLines.push(lines[i]);
+                        i++;
+                    }
+                    if (toolLines.length === 1) {
+                        // 单行 blockquote
+                        var inner = renderInline(toolLines[0].replace(/^>\s*/, ''));
+                        out.push('<div class="md-blockquote">' + inner + '</div>');
+                    } else {
+                        // 多行工具调用 → 折叠组
+                        var gid = 'tg-' + Math.random().toString(36).slice(2,8);
+                        var firstLine = renderInline(toolLines[0].replace(/^>\s*/, ''));
+                        var restHtml = toolLines.slice(1).map(function(l) {
+                            return '<div class="md-tool-line">' + renderInline(l.replace(/^>\s*/, '')) + '</div>';
+                        }).join('');
+                        out.push(
+                            '<div class="md-tool-group">' +
+                                '<div class="md-tool-summary" onclick="toggleToolGroup(\'' + gid + '\')">' +
+                                    '<span class="md-tool-arrow" id="arr-' + gid + '">▶</span>' +
+                                    '<span class="md-tool-first">' + firstLine + '</span>' +
+                                    '<span class="md-tool-count" id="cnt-' + gid + '"> +' + toolLines.slice(1).length + ' 步</span>' +
+                                '</div>' +
+                                '<div class="md-tool-body" id="' + gid + '">' + restHtml + '</div>' +
+                            '</div>'
+                        );
+                    }
+                    continue;
+                }
+
+                // ---- 标题 ----
+                var h = line.match(/^(#{1,3})\s+(.+)/);
+                if (h) {
+                    var lvl = h[1].length;
+                    out.push('<div class="md-h' + lvl + '">' + renderInline(h[2]) + '</div>');
+                    i++; continue;
+                }
+
+                // ---- 无序列表（连续行） ----
+                if (/^[-*+]\s/.test(line)) {
+                    var items = [];
+                    while (i < lines.length && /^[-*+]\s/.test(lines[i])) {
+                        items.push('<li>' + renderInline(lines[i].replace(/^[-*+]\s/, '')) + '</li>');
+                        i++;
+                    }
+                    out.push('<ul class="md-ul">' + items.join('') + '</ul>');
+                    continue;
+                }
+
+                // ---- 有序列表 ----
+                if (/^\d+\.\s/.test(line)) {
+                    var oitems = [];
+                    while (i < lines.length && /^\d+\.\s/.test(lines[i])) {
+                        oitems.push('<li>' + renderInline(lines[i].replace(/^\d+\.\s/, '')) + '</li>');
+                        i++;
+                    }
+                    out.push('<ol class="md-ol">' + oitems.join('') + '</ol>');
+                    continue;
+                }
+
+                // ---- 空行 ----
+                if (line.trim() === '') {
+                    out.push('<div class="md-gap"></div>');
+                    i++; continue;
+                }
+
+                // ---- 普通段落 ----
+                out.push('<div class="md-p">' + renderInline(line) + '</div>');
+                i++;
+            }
+            return out.join('');
+        }
+
+        // 行内：粗体、斜体、行内代码、链接
+        function renderInline(str) {
+            if (!str) return '';
+            // 先转义 HTML
+            str = escapeHtml(str);
+            // 行内代码 `code`
+            str = str.replace(/`([^`]+)`/g, '<code class="md-inline-code">$1</code>');
+            // 粗体 **text**
+            str = str.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+            // 斜体 *text* 或 _text_
+            str = str.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+            str = str.replace(/_([^_]+)_/g, '<em>$1</em>');
+            // 链接 [text](url)
+            str = str.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a class="md-link" href="$2" title="$2">$1</a>');
+            return str;
+        }
+
+        function toggleToolGroup(gid) {
+            var body = document.getElementById(gid);
+            var arr = document.getElementById('arr-' + gid);
+            var cnt = document.getElementById('cnt-' + gid);
+            if (!body) return;
+            var open = body.classList.toggle('open');
+            if (arr) arr.textContent = open ? '▼' : '▶';
+            if (cnt) cnt.style.display = open ? 'none' : '';
         }
 
         // 用于 data-* 属性值（只需要转义引号）
