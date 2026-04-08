@@ -121,17 +121,40 @@
         .md-code-block code { font-family: 'Consolas', 'Courier New', monospace; font-size: 11px; color: #d4d4d4; white-space: pre; }
         .md-link { color: var(--accent); text-decoration: none; }
         .md-link:hover { text-decoration: underline; }
-        /* 工具调用折叠组 */
-        .md-tool-group { margin: 4px 0; border: 1px solid rgba(0,122,204,0.2); border-radius: 4px; overflow: hidden; }
-        .md-tool-summary { display: flex; align-items: center; gap: 5px; padding: 4px 8px; cursor: pointer; background: rgba(0,122,204,0.06); font-size: 11px; user-select: none; }
-        .md-tool-summary:hover { background: rgba(0,122,204,0.12); }
-        .md-tool-arrow { font-size: 9px; color: var(--accent); flex-shrink: 0; }
-        .md-tool-first { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .md-tool-count { color: var(--accent); opacity: 0.7; font-size: 10px; flex-shrink: 0; }
-        .md-tool-body { display: none; padding: 4px 8px 4px 20px; border-top: 1px solid rgba(0,122,204,0.15); }
-        .md-tool-body.open { display: block; }
-        .md-tool-line { font-size: 11px; padding: 2px 0; opacity: 0.85; border-bottom: 1px solid rgba(255,255,255,0.04); }
-        .md-tool-line:last-child { border-bottom: none; }
+        /* 工具调用折叠组 - 参考 Copilot 原版样式 */
+        .md-tool-group { margin: 3px 0; }
+        .md-tool-summary {
+            display: flex; align-items: flex-start; gap: 5px;
+            padding: 3px 6px; cursor: pointer;
+            background: rgba(255,255,255,0.03);
+            border-left: 2px solid rgba(100,160,255,0.3);
+            border-radius: 0 3px 3px 0;
+            font-size: 11px; font-family: 'Consolas','Courier New',monospace;
+            color: rgba(255,255,255,0.55);
+            user-select: none; transition: background 0.1s;
+        }
+        .md-tool-summary:hover { background: rgba(255,255,255,0.06); border-left-color: rgba(100,160,255,0.7); }
+        .md-tool-arrow { font-size: 8px; color: rgba(100,160,255,0.8); flex-shrink: 0; margin-top: 2px; }
+        .md-tool-count {
+            flex-shrink: 0; margin-left: 4px; margin-top: 1px;
+            font-size: 10px; color: rgba(100,160,255,0.6);
+            background: rgba(100,160,255,0.1); border-radius: 8px;
+            padding: 0 5px; font-family: sans-serif;
+        }
+        /* 折叠时：body-wrap 只显示第一行，超长省略 */
+        .md-tool-body-wrap { flex: 1; overflow: hidden; }
+        .md-tool-body-wrap:not(.open) .md-tool-line:first-child {
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            max-width: 100%;
+        }
+        .md-tool-body-wrap:not(.open) .md-tool-line:not(:first-child) { display: none; }
+        /* 展开时：所有行正常显示，可换行 */
+        .md-tool-body-wrap.open .md-tool-line {
+            white-space: normal; word-break: break-all;
+            border-bottom: 1px solid rgba(255,255,255,0.04); padding: 2px 0;
+        }
+        .md-tool-body-wrap.open .md-tool-line:last-child { border-bottom: none; }
+        .md-tool-line { font-size: 11px; line-height: 1.5; }
         .response-role { font-size: 10px; text-transform: uppercase; opacity: 0.5; margin-bottom: 4px; font-weight: bold; }
         .response-text { font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
         .note-editor { display: none; padding: 6px 8px; gap: 4px; }
@@ -1144,31 +1167,29 @@
                     continue;
                 }
 
-                // ---- 工具调用行（所有 "> ..." 行，不管单行还是多行都做成可折叠） ----
+                // ---- 工具调用行（所有 "> ..." 行，可折叠展开） ----
                 if (/^>/.test(line)) {
                     var toolLines = [];
-                    // 收集连续的 > 行（允许中间有空的 > 行）
                     while (i < lines.length && /^>/.test(lines[i])) {
                         toolLines.push(lines[i]);
                         i++;
                     }
                     var gid = 'tg-' + Math.random().toString(36).slice(2,8);
-                    var firstText = renderInline(toolLines[0].replace(/^>\s*/, ''));
                     var allHtml = toolLines.map(function(l) {
                         return '<div class="md-tool-line">' + renderInline(l.replace(/^>\s*/, '')) + '</div>';
                     }).join('');
                     var extraCount = toolLines.length - 1;
                     var countBadge = extraCount > 0
-                        ? '<span class="md-tool-count" id="cnt-' + gid + '"> +' + extraCount + ' 步</span>'
+                        ? '<span class="md-tool-count" id="cnt-' + gid + '">+' + extraCount + '</span>'
                         : '';
+                    // 用 data-gid 代替 onclick 字符串，避免 HTML 转义问题
                     out.push(
                         '<div class="md-tool-group">' +
-                            '<div class="md-tool-summary" onclick="toggleToolGroup(\'' + gid + '\')">' +
+                            '<div class="md-tool-summary" data-gid="' + gid + '">' +
                                 '<span class="md-tool-arrow" id="arr-' + gid + '">▶</span>' +
-                                '<span class="md-tool-first">' + firstText + '</span>' +
+                                '<div class="md-tool-body-wrap" id="' + gid + '">' + allHtml + '</div>' +
                                 countBadge +
                             '</div>' +
-                            '<div class="md-tool-body" id="' + gid + '">' + allHtml + '</div>' +
                         '</div>'
                     );
                     continue;
@@ -1235,14 +1256,23 @@
         }
 
         function toggleToolGroup(gid) {
-            var body = document.getElementById(gid);
+            var wrap = document.getElementById(gid);
             var arr = document.getElementById('arr-' + gid);
             var cnt = document.getElementById('cnt-' + gid);
-            if (!body) return;
-            var open = body.classList.toggle('open');
+            if (!wrap) return;
+            var open = wrap.classList.toggle('open');
             if (arr) arr.textContent = open ? '▼' : '▶';
             if (cnt) cnt.style.display = open ? 'none' : '';
         }
+
+        // 事件委托：处理工具调用折叠点击（避免 onclick 字符串转义问题）
+        document.addEventListener('click', function(e) {
+            var summary = e.target.closest('.md-tool-summary');
+            if (summary) {
+                var gid = summary.getAttribute('data-gid');
+                if (gid) toggleToolGroup(gid);
+            }
+        });
 
         // 用于 data-* 属性值（只需要转义引号）
         function escHtml(str) {
