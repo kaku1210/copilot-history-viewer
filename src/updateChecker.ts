@@ -6,8 +6,8 @@ const VSIX_URL = `https://github.com/${REPO}/raw/main/copilot-history-viewer.vsi
 
 /** 获取带缓存破坏参数的 package.json URL，通过 GitHub API 读取（不经过 CDN 缓存） */
 function getPackageUrl(): string {
-    // 使用 GitHub Contents API，绕过 raw.githubusercontent.com 的 CDN 缓存
-    return `https://api.github.com/repos/${REPO}/contents/package.json`;
+    // 使用 GitHub Contents API + 时间戳，彻底绕过任何缓存
+    return `https://api.github.com/repos/${REPO}/contents/package.json?t=${Date.now()}`;
 }
 
 export interface UpdateInfo {
@@ -35,7 +35,11 @@ function isNewer(remote: string, local: string): boolean {
 function fetchJson(url: string): Promise<any> {
     return new Promise((resolve, reject) => {
         const req = https.get(url, {
-            headers: { 'User-Agent': 'copilot-history-viewer-updater' }
+            headers: {
+                'User-Agent': 'copilot-history-viewer-updater',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache',
+            }
         }, (res) => {
             // 处理重定向
             if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
