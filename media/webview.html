@@ -116,6 +116,11 @@
         @keyframes spin { to { transform: rotate(360deg); } }
         .toast { position: fixed; bottom: 20px; right: 20px; padding: 8px 16px; background: var(--btn-bg); color: var(--btn-fg); border-radius: 4px; font-size: 12px; z-index: 1000; opacity: 0; transform: translateY(10px); transition: all 0.3s; }
         .toast.visible { opacity: 1; transform: translateY(0); }
+        /* 云端/本地分组分割线 */
+        .source-divider { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: rgba(0,122,204,0.08); border-top: 2px solid var(--accent); border-bottom: 1px solid var(--border); font-size: 11px; color: var(--accent); font-weight: bold; list-style: none; }
+        .source-divider-count { font-weight: normal; opacity: 0.7; font-size: 10px; }
+        .cloud-badge { background: #1a6a9a !important; color: #7ecfff !important; }
+        .session-item[data-source="cloud"] .session-header { border-left: 2px solid #1a6a9a; }
 
         /* ===== GitHub 同步面板 ===== */
         .sync-panel { display: none; padding: 10px; border-bottom: 1px solid var(--border); background: var(--bg); }
@@ -576,6 +581,54 @@
         }
 
         // ===== 渲染会话列表 =====
+        function buildSessionHtml(session) {
+            var sid = session.sessionId;
+            var startDate = formatDateTime(session.createdAt);
+            var updateDate = formatDateTime(session.updatedAt);
+            var archivedTag = session.archived ? '<span class="session-badge" style="background:#555;">已归档</span>' : '';
+            var cloudTag = session.source === 'cloud' ? '<span class="session-badge cloud-badge">&#9729; 云端</span>' : '';
+            var noteHtml = session.note ? '<div class="session-note">&#128221; ' + escapeHtml(session.note) + '</div>' : '';
+            var archiveLabel = session.archived ? '取消归档' : '归档';
+            var archiveIcon = session.archived ? '&#128228;' : '&#128230;';
+            var pinBadge = '';
+            var pinBtn = '';
+            if (session.pinType === 'global') {
+                pinBadge = '<span class="pin-badge global">&#128204;全局</span>';
+                pinBtn = '<button class="action-btn" data-action="unpin" data-session-id="' + escHtml(sid) + '" title="取消置顶">&#128204;</button>';
+            } else if (session.pinType === 'local') {
+                pinBadge = '<span class="pin-badge">&#128204;</span>';
+                pinBtn = '<button class="action-btn" data-action="unpin" data-session-id="' + escHtml(sid) + '" title="取消置顶">&#128204;</button>';
+            } else {
+                pinBtn = '<button class="action-btn" data-action="pin" data-session-id="' + escHtml(sid) + '" title="置顶">&#128204;</button>';
+            }
+            return '<li class="session-item" data-session-id="' + escHtml(sid) + '" data-source="' + (session.source || 'local') + '">' +
+                '<div class="session-header">' +
+                    '<span class="arrow">&#9658;</span>' +
+                    '<div class="session-info">' +
+                        '<div class="session-title">' + pinBadge + escapeHtml(session.title) + '</div>' +
+                        '<div class="session-meta">' +
+                            '<span title="创建时间">&#9200; ' + startDate + '</span>' +
+                            '<span title="最后更新">&#8635; ' + updateDate + '</span>' +
+                            '<span>' + session.turns.length + ' 条提问</span>' +
+                            archivedTag + cloudTag +
+                        '</div>' +
+                        noteHtml +
+                    '</div>' +
+                    '<div class="session-actions">' +
+                        pinBtn +
+                        '<button class="action-btn" data-action="editNote" data-session-id="' + escHtml(sid) + '" title="备注">&#128221;</button>' +
+                        '<button class="action-btn" data-action="archive" data-session-id="' + escHtml(sid) + '" data-archive="' + (!session.archived) + '" title="' + archiveLabel + '">' + archiveIcon + '</button>' +
+                        '<button class="action-btn" data-action="delete" data-session-id="' + escHtml(sid) + '" title="删除">&#128465;</button>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="note-editor" data-note-type="session" data-session-id="' + escHtml(sid) + '">' +
+                    '<input type="text" value="' + escHtml(session.note || '') + '" placeholder="输入备注..." />' +
+                    '<button>保存</button>' +
+                '</div>' +
+                '<div class="turns-container" id="turns-' + escHtml(sid) + '"></div>' +
+            '</li>';
+        }
+
         function renderSessions(sessions) {
             var list = document.getElementById('sessionList');
             var empty = document.getElementById('emptyState');
@@ -587,57 +640,27 @@
                 return;
             }
             empty.style.display = 'none';
+
+            var localSessions = sessions.filter(function(s) { return s.source !== 'cloud'; });
+            var cloudSessions = sessions.filter(function(s) { return s.source === 'cloud'; });
             var totalTurns = sessions.reduce(function(sum, s) { return sum + s.turns.length; }, 0);
-            stats.textContent = '共 ' + sessions.length + ' 个对话，' + totalTurns + ' 条提问';
-            list.innerHTML = sessions.map(function(session) {
-                var sid = session.sessionId;
-                var startDate = formatDateTime(session.createdAt);
-                var updateDate = formatDateTime(session.updatedAt);
-                var archivedTag = session.archived ? '<span class="session-badge" style="background:#555;">已归档</span>' : '';
-                var noteHtml = session.note ? '<div class="session-note">&#128221; ' + escapeHtml(session.note) + '</div>' : '';
-                var archiveLabel = session.archived ? '取消归档' : '归档';
-                var archiveIcon = session.archived ? '&#128228;' : '&#128230;';
-                // 置顶角标
-                var pinBadge = '';
-                var pinBtn = '';
-                if (session.pinType === 'global') {
-                    pinBadge = '<span class="pin-badge global">📌全局</span>';
-                    pinBtn = '<button class="action-btn" data-action="unpin" data-session-id="' + escHtml(sid) + '" title="取消置顶">&#128204;</button>';
-                } else if (session.pinType === 'local') {
-                    pinBadge = '<span class="pin-badge">📌</span>';
-                    pinBtn = '<button class="action-btn" data-action="unpin" data-session-id="' + escHtml(sid) + '" title="取消置顶">&#128204;</button>';
-                } else {
-                    pinBtn = '<button class="action-btn" data-action="pin" data-session-id="' + escHtml(sid) + '" title="置顶">&#128204;</button>';
-                }
-                return '<li class="session-item" data-session-id="' + escHtml(sid) + '">' +
-                    '<div class="session-header">' +
-                        '<span class="arrow">&#9658;</span>' +
-                        '<div class="session-info">' +
-                            '<div class="session-title">' + pinBadge + escapeHtml(session.title) + '</div>' +
-                            '<div class="session-meta">' +
-                                '<span title="创建时间">&#9200; ' + startDate + '</span>' +
-                                '<span title="最后更新">&#8635; ' + updateDate + '</span>' +
-                                '<span>' + session.turns.length + ' 条提问</span>' +
-                                archivedTag +
-                            '</div>' +
-                            noteHtml +
-                        '</div>' +
-                        '<div class="session-actions">' +
-                            pinBtn +
-                            '<button class="action-btn" data-action="editNote" data-session-id="' + escHtml(sid) + '" title="备注">&#128221;</button>' +
-                            '<button class="action-btn" data-action="archive" data-session-id="' + escHtml(sid) + '" data-archive="' + (!session.archived) + '" title="' + archiveLabel + '">' + archiveIcon + '</button>' +
-                            '<button class="action-btn" data-action="delete" data-session-id="' + escHtml(sid) + '" title="删除">&#128465;</button>' +
-                        '</div>' +
-                    '</div>' +
-                    '<div class="note-editor" data-note-type="session" data-session-id="' + escHtml(sid) + '">' +
-                        '<input type="text" value="' + escHtml(session.note || '') + '" placeholder="输入备注..." />' +
-                        '<button>保存</button>' +
-                    '</div>' +
-                    '<div class="turns-container" id="turns-' + escHtml(sid) + '"></div>' +
+            var cloudInfo = cloudSessions.length > 0 ? ('&#65292;&#9729; 云端 ' + cloudSessions.length + ' 个') : '';
+            stats.textContent = '本地 ' + localSessions.length + ' 个对话' + cloudInfo + '&#65292;共 ' + totalTurns + ' 条提问';
+
+            var html = localSessions.map(buildSessionHtml).join('');
+
+            if (cloudSessions.length > 0) {
+                html += '<li class="source-divider">' +
+                    '<span>&#9729; 云端同步记录（来自其他设备）</span>' +
+                    '<span class="source-divider-count">' + cloudSessions.length + ' 个</span>' +
                 '</li>';
-            }).join('');
+                html += cloudSessions.map(buildSessionHtml).join('');
+            }
+
+            list.innerHTML = html;
         }
 
+        // 残留删除
         function renderTurns(session) {
             var sid = session.sessionId;
             return session.turns.map(function(turn) {

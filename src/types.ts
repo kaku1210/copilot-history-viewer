@@ -35,6 +35,7 @@ export interface ChatSession {
     deleted?: boolean;     // 是否已删除（软删除）
     pinType?: PinType;     // 置顶类型
     pinOrder?: number;     // 置顶顺序（越小越靠前）
+    source?: 'local' | 'cloud'; // 数据来源：本地 or 云端同步
 }
 
 /**

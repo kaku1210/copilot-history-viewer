@@ -69,13 +69,14 @@ export class DataStorageService {
 
     /**
      * 主入口：加载所有 Copilot Chat 聊天记录
-     * 同时读取本地 workspaceStorage 和 cloud cache（拉取的 .jsonl）
+     * 本地和云端分别加载，不混合去重，保持数据隔离
      */
     async loadCopilotSessions(): Promise<ChatSession[]> {
-        const sessions: ChatSession[] = [];
+        const localSessions: ChatSession[] = [];
+        const cloudSessions: ChatSession[] = [];
         const wsDirs = this.getWorkspaceStorageDirs();
 
-        // 1. 读取本地 workspaceStorage
+        // 1. 读取本地 workspaceStorage，标记 source='local'
         for (const wsDir of wsDirs) {
             const chatSessionsDir = path.join(wsDir, 'chatSessions');
             if (!fs.existsSync(chatSessionsDir)) continue;
@@ -84,29 +85,42 @@ export class DataStorageService {
                 for (const file of files) {
                     try {
                         const session = this.parseJsonlFile(path.join(chatSessionsDir, file));
-                        if (session && session.turns.length > 0) { sessions.push(session); }
+                        if (session && session.turns.length > 0) {
+                            session.source = 'local';
+                            localSessions.push(session);
+                        }
                     } catch (e) { console.error(`Error parsing ${file}:`, e); }
                 }
             } catch (e) { console.error(`Error reading ${chatSessionsDir}:`, e); }
         }
 
-        // 2. 读取云同步缓存的 .jsonl（另一台设备推送过来的）
+        // 2. 读取云同步缓存的 .jsonl，标记 source='cloud'
+        //    不与本地去重，完全隔离
         const cloudCacheDir = path.join(this.cachePath, 'jsonl');
         if (fs.existsSync(cloudCacheDir)) {
+            // 收集本地已有的 sessionId，云端中同 ID 的跳过（本机自己推上去的）
+            const localIds = new Set(localSessions.map(s => s.sessionId));
             try {
                 const files = fs.readdirSync(cloudCacheDir).filter(f => f.endsWith('.jsonl'));
                 for (const file of files) {
                     try {
                         const session = this.parseJsonlFile(path.join(cloudCacheDir, file));
-                        if (session && session.turns.length > 0) { sessions.push(session); }
+                        if (session && session.turns.length > 0 && !localIds.has(session.sessionId)) {
+                            session.source = 'cloud';
+                            cloudSessions.push(session);
+                        }
                     } catch (e) { console.error(`Error parsing cloud cache ${file}:`, e); }
                 }
             } catch (e) { console.error('Error reading cloud cache dir:', e); }
         }
 
-        // 去重 + 排序 + 合并元数据
-        const unique = this.deduplicateSessions(sessions);
-        return this.mergeMetadata(unique);
+        // 各自去重后合并元数据，本地在前，云端在后
+        const uniqueLocal = this.deduplicateSessions(localSessions);
+        const uniqueCloud = this.deduplicateSessions(cloudSessions);
+        const allMerged = this.mergeMetadata([...uniqueLocal, ...uniqueCloud]);
+
+        // 保留 source 标记（mergeMetadata 不会覆盖）
+        return allMerged;
     }
 
     /**
