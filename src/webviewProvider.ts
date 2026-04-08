@@ -2,10 +2,71 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import * as os from 'os';
+import * as https from 'https';
+import { execFile } from 'child_process';
 import { DataStorageService } from './dataStorage';
 import { GitSyncService } from './gitSyncService';
 import { checkForUpdate } from './updateChecker';
 import { WebviewMessage, SessionFilter } from './types';
+
+/** 下载 .vsix 到系统临时目录，返回本地路径 */
+async function downloadVsix(url: string, onProgress?: (msg: string) => void): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const dest = path.join(os.tmpdir(), `copilot-history-update-${Date.now()}.vsix`);
+        const file = fs.createWriteStream(dest);
+        const doRequest = (reqUrl: string) => {
+            https.get(reqUrl, { headers: { 'User-Agent': 'copilot-history-viewer-updater' } }, (res) => {
+                if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                    doRequest(res.headers.location);
+                    return;
+                }
+                const total = parseInt(res.headers['content-length'] || '0', 10);
+                let received = 0;
+                res.on('data', (chunk) => {
+                    received += chunk.length;
+                    if (total > 0) {
+                        const pct = Math.round(received / total * 100);
+                        onProgress?.(`下载中... ${pct}%`);
+                    }
+                });
+                res.pipe(file);
+                file.on('finish', () => { file.close(); resolve(dest); });
+                file.on('error', reject);
+            }).on('error', reject);
+        };
+        doRequest(url);
+    });
+}
+
+/** 用 VS Code CLI 安装 .vsix */
+async function installVsix(vsixPath: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+        // 尝试找 code CLI
+        const candidates = [
+            process.execPath.replace(/electron\.exe$/i, 'bin/code.cmd'),
+            'code',
+        ];
+        // 直接使用环境变量 VSCODE_CWD 附近的 code 命令
+        const codeExe = process.env['VSCODE_PORTABLE']
+            ? path.join(process.env['VSCODE_PORTABLE'], '..', 'bin', 'code')
+            : candidates[1];
+
+        execFile(codeExe, ['--install-extension', vsixPath, '--force'], (err) => {
+            if (err) {
+                // fallback: 找常见路径
+                const fallback = path.join(
+                    process.env['LOCALAPPDATA'] || os.homedir(),
+                    'Programs', 'Microsoft VS Code', 'bin', 'code.cmd'
+                );
+                execFile(fallback, ['--install-extension', vsixPath, '--force'], (err2) => {
+                    if (err2) { reject(new Error('安装失败，请手动安装：' + vsixPath)); }
+                    else { resolve(); }
+                });
+            } else { resolve(); }
+        });
+    });
+}
 
 export class HistoryWebviewProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'copilotHistoryView';
@@ -38,6 +99,11 @@ export class HistoryWebviewProvider implements vscode.WebviewViewProvider {
         webviewView.webview.onDidReceiveMessage(async (message: WebviewMessage) => {
             switch (message.type) {
                 case 'ready':
+                    await this.sendSessionsToWebview();
+                    // WebView 已就绪，现在才能发消息，触发更新检查
+                    this._checkUpdateOnStartup();
+                    break;
+
                 case 'refresh':
                     await this.sendSessionsToWebview();
                     break;
@@ -97,6 +163,29 @@ export class HistoryWebviewProvider implements vscode.WebviewViewProvider {
                 case 'checkUpdate':
                     this._checkUpdateOnStartup(true);
                     break;
+
+                case 'autoInstall': {
+                    const vsixUrl = message.vsixUrl;
+                    this.postMessage({ type: 'updateInfo', hasUpdate: true, currentVersion: '?', latestVersion: '?', releasesUrl: '', vsixUrl, installStatus: 'downloading' } as any);
+                    try {
+                        const tmpPath = await downloadVsix(vsixUrl, (prog) => {
+                            this.postMessage({ type: 'updateInfo', hasUpdate: true, currentVersion: '?', latestVersion: '?', releasesUrl: '', vsixUrl, installStatus: 'downloading', installProgress: prog } as any);
+                        });
+                        this.postMessage({ type: 'updateInfo', hasUpdate: true, currentVersion: '?', latestVersion: '?', releasesUrl: '', vsixUrl, installStatus: 'installing' } as any);
+                        await installVsix(tmpPath);
+                        this.postMessage({ type: 'updateInfo', hasUpdate: false, currentVersion: '?', latestVersion: '?', releasesUrl: '', vsixUrl, installStatus: 'done' } as any);
+                        const choice = await vscode.window.showInformationMessage(
+                            '✅ 新版本安装成功！请重载窗口以生效。',
+                            '立即重载'
+                        );
+                        if (choice === '立即重载') {
+                            vscode.commands.executeCommand('workbench.action.reloadWindow');
+                        }
+                    } catch (e: any) {
+                        this.postMessage({ type: 'updateInfo', hasUpdate: true, currentVersion: '?', latestVersion: '?', releasesUrl: '', vsixUrl, installStatus: 'error', installError: e.message } as any);
+                    }
+                    break;
+                }
 
                 case 'openUrl':
                     vscode.env.openExternal(vscode.Uri.parse(message.url));
@@ -165,9 +254,6 @@ export class HistoryWebviewProvider implements vscode.WebviewViewProvider {
                 }
             }
         });
-
-        // 启动时检查更新（异步，不阻塞）
-        this._checkUpdateOnStartup();
 
         // 自动拉取（启动时）
         const cfg = this._gitSync.getConfig();

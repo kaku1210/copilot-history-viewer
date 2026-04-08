@@ -148,6 +148,9 @@
         .about-btn:hover { background: var(--hover); border-color: var(--accent); }
         .about-btn.primary { background: var(--btn-bg); color: var(--btn-fg); border-color: var(--btn-bg); }
         .about-btn.orange { background: #b8860b; color: #fff; border-color: #b8860b; }
+        .about-btn.orange-btn { background: #c47a00; color: #fff; border-color: #c47a00; font-weight: bold; }
+        .about-btn.orange-btn:hover { background: #e08800; border-color: #e08800; }
+        .about-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         /* 工具栏按钮有更新时的红点 */
         .icon-btn.has-update { position: relative; }
         .icon-btn.has-update::after { content: ''; position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; background: #f60; border-radius: 50%; }
@@ -290,8 +293,9 @@
         </div>
         <div class="about-btn-row">
             <button class="about-btn" id="manualCheckBtn">&#128269; 检查更新</button>
-            <button class="about-btn" id="updateDownloadBtn" style="display:none;">&#11015; 下载新版本</button>
-            <button class="about-btn" id="releasesBtn" data-url="https://github.com/kaku1210/copilot-history-viewer/releases">&#128196; 查看版本记录</button>
+            <button class="about-btn orange-btn" id="autoInstallBtn" style="display:none;">&#9889; 一键安装新版本</button>
+            <button class="about-btn" id="updateDownloadBtn" style="display:none;">&#11015; 手动下载</button>
+            <button class="about-btn" id="releasesBtn">&#128196; 版本记录</button>
         </div>
     </div>
 
@@ -409,6 +413,11 @@
             document.getElementById('updateDownloadBtn').style.display = 'none';
             vscode.postMessage({ type: 'checkUpdate' });
         });
+        document.getElementById('autoInstallBtn').addEventListener('click', function() {
+            if (!_updateVsixUrl) { return; }
+            this.disabled = true;
+            vscode.postMessage({ type: 'autoInstall', vsixUrl: _updateVsixUrl });
+        });
         document.getElementById('updateDownloadBtn').addEventListener('click', function() {
             vscode.postMessage({ type: 'openUrl', url: _updateVsixUrl || 'https://github.com/kaku1210/copilot-history-viewer/releases' });
         });
@@ -431,23 +440,49 @@
         }
 
         function handleUpdateInfo(msg) {
-            // 更新版本号显示
+            var dlBtn = document.getElementById('updateDownloadBtn');
+            var installBtn = document.getElementById('autoInstallBtn');
+            var aboutBtn = document.getElementById('aboutBtn');
+
+            // 安装状态反馈
+            if (msg.installStatus === 'downloading') {
+                setUpdateStatus('checking', '&#8987;', '正在下载...', msg.installProgress || '下载中，请稍候');
+                installBtn.disabled = true;
+                return;
+            }
+            if (msg.installStatus === 'installing') {
+                setUpdateStatus('checking', '&#9881;', '正在安装...', '即将完成，请稍候');
+                return;
+            }
+            if (msg.installStatus === 'done') {
+                setUpdateStatus('latest', '&#9989;', '安装成功！', '请点击弹窗中的「立即重载」完成更新');
+                installBtn.style.display = 'none';
+                dlBtn.style.display = 'none';
+                aboutBtn.classList.remove('has-update');
+                return;
+            }
+            if (msg.installStatus === 'error') {
+                setUpdateStatus('has-update', '&#10060;', '安装失败', msg.installError || '请尝试手动下载安装');
+                installBtn.disabled = false;
+                return;
+            }
+
+            // 常规检查结果
             if (msg.currentVersion && msg.currentVersion !== '?') {
                 document.getElementById('versionText').textContent = 'v' + msg.currentVersion;
             }
             _updateVsixUrl = msg.vsixUrl || '';
-
-            var dlBtn = document.getElementById('updateDownloadBtn');
-            var aboutBtn = document.getElementById('aboutBtn');
 
             if (msg.hasUpdate) {
                 setUpdateStatus('has-update', '&#128226;',
                     '发现新版本 v' + msg.latestVersion,
                     '当前版本 v' + msg.currentVersion + '，建议更新以获取最新功能和修复'
                 );
+                installBtn.style.display = 'inline-block';
+                installBtn.disabled = false;
                 dlBtn.style.display = 'inline-block';
                 aboutBtn.classList.add('has-update');
-                // 有更新时自动展开面板（关闭其他面板）
+                // 有更新时自动展开面板
                 openPanel('aboutPanel');
                 document.getElementById('aboutPanel').classList.add('visible');
             } else if (msg.currentVersion && msg.currentVersion !== '?') {
@@ -455,6 +490,7 @@
                     '当前已是最新版本',
                     'v' + msg.currentVersion + ' · 无可用更新'
                 );
+                installBtn.style.display = 'none';
                 dlBtn.style.display = 'none';
                 aboutBtn.classList.remove('has-update');
             } else {

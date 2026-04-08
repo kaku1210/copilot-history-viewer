@@ -82,6 +82,7 @@ export type WebviewMessage =
     | { type: 'getGitConfig' }
     | { type: 'openSettings' }
     | { type: 'checkUpdate' }
+    | { type: 'autoInstall'; vsixUrl: string }
     | { type: 'openUrl'; url: string };
 
 export type ExtensionMessage =
