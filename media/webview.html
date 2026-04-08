@@ -198,6 +198,7 @@
                 <option value="updatedAt">按更新时间</option>
                 <option value="createdAt">按创建时间</option>
             </select>
+            <button id="sortDirBtn" title="切换升序/降序" style="font-size:12px;padding:2px 7px;background:var(--input-bg);color:var(--fg);border:1px solid var(--input-border);border-radius:3px;cursor:pointer;line-height:1.4;" >↓新→旧</button>
             <button class="toggle-btn" id="dateActiveToggle" style="display:none;"></button>
         </div>
     </div>
@@ -325,6 +326,7 @@
         // archiveMode: 'normal'=未归档, 'archived'=已归档, 'all'=全部
         var archiveMode = 'normal';
         var currentSortBy = 'updatedAt';   // 'updatedAt' | 'createdAt'
+        var currentSortDir = 'desc';       // 'desc'=降序(新→旧) | 'asc'=升序(旧→新)
         var currentKeyword = '';           // 搜索词（刷新按钮会清空）
 
         // ===== 日历状态（不持久化，reload 恢复默认） =====
@@ -380,6 +382,13 @@
         }, 300));
         document.getElementById('sortSelect').addEventListener('change', function() {
             currentSortBy = this.value;
+            applyFilters();
+        });
+        document.getElementById('sortDirBtn').addEventListener('click', function() {
+            currentSortDir = currentSortDir === 'desc' ? 'asc' : 'desc';
+            this.textContent = currentSortDir === 'desc' ? '↓新→旧' : '↑旧→新';
+            this.style.color = currentSortDir === 'asc' ? 'var(--accent)' : 'var(--fg)';
+            this.style.borderColor = currentSortDir === 'asc' ? 'var(--accent)' : 'var(--input-border)';
             applyFilters();
         });
         // ===== 面板互斥开关 =====
@@ -759,7 +768,8 @@
                 dateTo: activeDateTo || undefined,
                 dateFilterModes: activeDateFrom ? activeDateFilterModes : undefined,
                 archiveMode: archiveMode,
-                sortBy: currentSortBy
+                sortBy: currentSortBy,
+                sortDir: currentSortDir
             }});
         }
 

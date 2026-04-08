@@ -118,4 +118,6 @@ export interface SessionFilter {
     archiveMode?: 'normal' | 'archived' | 'all';
     /** 排序方式：updatedAt（默认）| createdAt */
     sortBy?: 'updatedAt' | 'createdAt';
+    /** 排序方向：desc=降序新→旧（默认）| asc=升序旧→新 */
+    sortDir?: 'desc' | 'asc';
 }

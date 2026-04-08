@@ -407,9 +407,12 @@ export class DataStorageService {
         if (filter) {
             // 排序（置顶逻辑在最后统一处理）
             const sortKey = filter.sortBy || 'updatedAt';
-            sessions.sort((a, b) =>
-                new Date(b[sortKey]).getTime() - new Date(a[sortKey]).getTime()
-            );
+            const sortDir = filter.sortDir || 'desc';
+            sessions.sort((a, b) => {
+                const ta = new Date(a[sortKey]).getTime();
+                const tb = new Date(b[sortKey]).getTime();
+                return sortDir === 'asc' ? ta - tb : tb - ta;
+            });
 
             if (filter.dateFrom || filter.dateTo) {
                 const from = filter.dateFrom ? new Date(filter.dateFrom) : null;
