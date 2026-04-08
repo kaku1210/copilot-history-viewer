@@ -2,7 +2,7 @@
   "name": "copilot-history-viewer",
   "displayName": "Copilot Chat History Viewer",
   "description": "结构化浏览和管理 GitHub Copilot Chat 的聊天历史记录",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "publisher": "local-dev",
   "repository": {
     "type": "git",
