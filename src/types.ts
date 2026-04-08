@@ -18,10 +18,15 @@ export interface ChatTurn {
     userMessage: string;
     responses: ChatMessage[];
     timestamp: string;
-    note?: string;         // 提问级别的备注
-    modelId?: string;      // 使用的模型 ID，如 "copilot/gpt-5-mini"
-    agentId?: string;      // agent ID，如 "github.copilot.editsAgent"
-    agentName?: string;    // agent 显示名称，如 "agent" / "ask"
+    note?: string;             // 提问级别的备注
+    modelId?: string;          // 使用的模型，如 "gpt-5-mini"
+    agentId?: string;          // agent ID
+    agentName?: string;        // 交互模式：agent / ask / edit
+    permissionLevel?: string;  // 权限级别：autopilot / default
+    attachedFiles?: string[];  // 附件文件名列表
+    codeCitations?: { url: string; license?: string }[]; // 代码引用
+    responseTimestamp?: string; // 响应完成时间（用于算耗时）
+    waitStartTime?: number;    // timeSpentWaiting（ms 时间戳）
 }
 
 /**

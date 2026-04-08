@@ -125,6 +125,9 @@
         .turn-tag { display: inline-flex; align-items: center; font-size: 10px; padding: 1px 5px; border-radius: 3px; margin-left: 3px; font-weight: 500; vertical-align: middle; }
         .turn-tag-model { background: rgba(86,156,214,0.15); color: #569cd6; border: 1px solid rgba(86,156,214,0.3); }
         .turn-tag-agent { background: rgba(78,201,176,0.15); color: #4ec9b0; border: 1px solid rgba(78,201,176,0.3); }
+        .turn-tag-perm  { background: rgba(255,165,0,0.12);  color: #e5a000; border: 1px solid rgba(255,165,0,0.25); }
+        .turn-tag-file  { background: rgba(180,180,180,0.1); color: #aaa;    border: 1px solid rgba(180,180,180,0.2); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: help; }
+        .turn-tag-cite  { background: rgba(220,130,220,0.12);color: #c586c0; border: 1px solid rgba(220,130,220,0.25); }
         /* 工具调用折叠组 - 参考 Copilot 原版样式 */
         .md-tool-group { margin: 3px 0; }
         .md-tool-summary {
@@ -935,12 +938,32 @@
                 var timeStr = formatDateTime(turn.timestamp);
                 var noteHtml = turn.note ? '<div class="turn-note">&#128221; ' + escapeHtml(turn.note) + '</div>' : '';
                 var metaTags = '';
+                // 模型
                 if (turn.modelId) {
-                    metaTags += '<span class="turn-tag turn-tag-model" title="模型">' + escapeHtml(turn.modelId) + '</span>';
+                    metaTags += '<span class="turn-tag turn-tag-model" title="使用模型">⬡ ' + escapeHtml(turn.modelId) + '</span>';
                 }
+                // 交互模式
                 if (turn.agentName) {
-                    var agentLabel = turn.agentName === 'agent' ? '⚙ Agent' : turn.agentName === 'ask' ? '💬 Ask' : turn.agentName === 'edit' ? '✏ Edit' : escapeHtml(turn.agentName);
-                    metaTags += '<span class="turn-tag turn-tag-agent" title="模式">' + agentLabel + '</span>';
+                    var modeIconMap = {agent:'⚙', ask:'💬', edit:'✏', notebook:'📓'};
+                    var modeIcon = modeIconMap[turn.agentName] || '●';
+                    metaTags += '<span class="turn-tag turn-tag-agent" title="交互模式">' + modeIcon + ' ' + escapeHtml(turn.agentName) + '</span>';
+                }
+                // 权限级别
+                if (turn.permissionLevel && turn.permissionLevel !== 'default') {
+                    var plLabel = turn.permissionLevel === 'autopilot' ? '🤖 autopilot' : escapeHtml(turn.permissionLevel);
+                    metaTags += '<span class="turn-tag turn-tag-perm" title="权限级别">' + plLabel + '</span>';
+                }
+                // 附件文件
+                if (turn.attachedFiles && turn.attachedFiles.length) {
+                    var fileLabel = turn.attachedFiles.length === 1
+                        ? '📎 ' + escapeHtml(turn.attachedFiles[0])
+                        : '📎 ' + turn.attachedFiles.length + ' 个文件';
+                    var fileTitle = turn.attachedFiles.map(function(f){ return escapeHtml(f); }).join('\n');
+                    metaTags += '<span class="turn-tag turn-tag-file" title="' + fileTitle + '">' + fileLabel + '</span>';
+                }
+                // 代码引用
+                if (turn.codeCitations && turn.codeCitations.length) {
+                    metaTags += '<span class="turn-tag turn-tag-cite" title="包含代码引用">⚖ ' + turn.codeCitations.length + ' 引用</span>';
                 }
                 return '<div class="turn-item" data-turn-id="' + escHtml(tid) + '">' +
                     '<div class="turn-header">' +

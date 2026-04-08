@@ -285,17 +285,47 @@ export class DataStorageService {
                 responses.push({ role: 'assistant', content: fullResponseText, timestamp });
             }
 
-            // 提取模型 ID：优先用 req.modelId，其次 req.model?.id
+            // 模型
             const rawModelId: string = req.modelId || req.model?.id || req.model?.identifier || '';
-            // 去掉 "copilot/" 前缀，只保留模型名
             const modelId = rawModelId.replace(/^copilot\//, '');
 
-            // 提取 agent 信息
+            // Agent / 模式
             const agentId: string = req.agent?.id || '';
-            // modeInfo.modeId: "agent"/"ask"/"edit" 更简洁
             const agentName: string = req.modeInfo?.modeId || req.agent?.name || '';
 
-            turns.push({ id: reqId, userMessage, responses, timestamp, modelId, agentId, agentName });
+            // 权限级别：autopilot / default
+            const permissionLevel: string = req.modeInfo?.permissionLevel || req.permissionLevel || '';
+
+            // 附件文件：从 message.variableData.variables 里提取 kind=file 的条目
+            const attachedFiles: string[] = [];
+            const vars: any[] = req.message?.variableData?.variables || [];
+            for (const v of vars) {
+                if (v.kind === 'file' || v.kind === 3) {
+                    // value 可能是 URI 对象或字符串
+                    const fname = v.name || v.value?.fsPath || v.value?.path || '';
+                    if (fname && !fname.startsWith('prompt:') && !fname.startsWith('vscode.')) {
+                        // 只取文件名，不要完整路径
+                        attachedFiles.push(fname.replace(/.*[/\\]/, ''));
+                    }
+                }
+            }
+
+            // 代码引用
+            const codeCitations: { url: string; license?: string }[] = (req.codeCitations || []).map((c: any) => ({
+                url: c.uri || c.url || '',
+                license: c.license || '',
+            })).filter((c: any) => c.url);
+
+            // 响应耗时起始时间
+            const waitStartTime: number = req.timeSpentWaiting || 0;
+
+            turns.push({
+                id: reqId, userMessage, responses, timestamp,
+                modelId, agentId, agentName, permissionLevel,
+                attachedFiles: attachedFiles.length ? attachedFiles : undefined,
+                codeCitations: codeCitations.length ? codeCitations : undefined,
+                waitStartTime: waitStartTime || undefined,
+            });
         }
 
         if (turns.length === 0) return null;
