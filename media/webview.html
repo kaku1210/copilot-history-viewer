@@ -1144,35 +1144,33 @@
                     continue;
                 }
 
-                // ---- 工具调用行组（连续的 "> 🔧/🔍/📖 ..." 折叠） ----
-                if (/^>\s/.test(line)) {
+                // ---- 工具调用行（所有 "> ..." 行，不管单行还是多行都做成可折叠） ----
+                if (/^>/.test(line)) {
                     var toolLines = [];
-                    while (i < lines.length && /^>\s/.test(lines[i])) {
+                    // 收集连续的 > 行（允许中间有空的 > 行）
+                    while (i < lines.length && /^>/.test(lines[i])) {
                         toolLines.push(lines[i]);
                         i++;
                     }
-                    if (toolLines.length === 1) {
-                        // 单行 blockquote
-                        var inner = renderInline(toolLines[0].replace(/^>\s*/, ''));
-                        out.push('<div class="md-blockquote">' + inner + '</div>');
-                    } else {
-                        // 多行工具调用 → 折叠组
-                        var gid = 'tg-' + Math.random().toString(36).slice(2,8);
-                        var firstLine = renderInline(toolLines[0].replace(/^>\s*/, ''));
-                        var restHtml = toolLines.slice(1).map(function(l) {
-                            return '<div class="md-tool-line">' + renderInline(l.replace(/^>\s*/, '')) + '</div>';
-                        }).join('');
-                        out.push(
-                            '<div class="md-tool-group">' +
-                                '<div class="md-tool-summary" onclick="toggleToolGroup(\'' + gid + '\')">' +
-                                    '<span class="md-tool-arrow" id="arr-' + gid + '">▶</span>' +
-                                    '<span class="md-tool-first">' + firstLine + '</span>' +
-                                    '<span class="md-tool-count" id="cnt-' + gid + '"> +' + toolLines.slice(1).length + ' 步</span>' +
-                                '</div>' +
-                                '<div class="md-tool-body" id="' + gid + '">' + restHtml + '</div>' +
-                            '</div>'
-                        );
-                    }
+                    var gid = 'tg-' + Math.random().toString(36).slice(2,8);
+                    var firstText = renderInline(toolLines[0].replace(/^>\s*/, ''));
+                    var allHtml = toolLines.map(function(l) {
+                        return '<div class="md-tool-line">' + renderInline(l.replace(/^>\s*/, '')) + '</div>';
+                    }).join('');
+                    var extraCount = toolLines.length - 1;
+                    var countBadge = extraCount > 0
+                        ? '<span class="md-tool-count" id="cnt-' + gid + '"> +' + extraCount + ' 步</span>'
+                        : '';
+                    out.push(
+                        '<div class="md-tool-group">' +
+                            '<div class="md-tool-summary" onclick="toggleToolGroup(\'' + gid + '\')">' +
+                                '<span class="md-tool-arrow" id="arr-' + gid + '">▶</span>' +
+                                '<span class="md-tool-first">' + firstText + '</span>' +
+                                countBadge +
+                            '</div>' +
+                            '<div class="md-tool-body" id="' + gid + '">' + allHtml + '</div>' +
+                        '</div>'
+                    );
                     continue;
                 }
 
@@ -1184,11 +1182,11 @@
                     i++; continue;
                 }
 
-                // ---- 无序列表（连续行） ----
-                if (/^[-*+]\s/.test(line)) {
+                // ---- 无序列表（连续行，- 或 * 或 + 后跟空格） ----
+                if (/^[-*+] /.test(line)) {
                     var items = [];
-                    while (i < lines.length && /^[-*+]\s/.test(lines[i])) {
-                        items.push('<li>' + renderInline(lines[i].replace(/^[-*+]\s/, '')) + '</li>');
+                    while (i < lines.length && /^[-*+] /.test(lines[i])) {
+                        items.push('<li>' + renderInline(lines[i].replace(/^[-*+] /, '')) + '</li>');
                         i++;
                     }
                     out.push('<ul class="md-ul">' + items.join('') + '</ul>');
@@ -1196,10 +1194,10 @@
                 }
 
                 // ---- 有序列表 ----
-                if (/^\d+\.\s/.test(line)) {
+                if (/^\d+\. /.test(line)) {
                     var oitems = [];
-                    while (i < lines.length && /^\d+\.\s/.test(lines[i])) {
-                        oitems.push('<li>' + renderInline(lines[i].replace(/^\d+\.\s/, '')) + '</li>');
+                    while (i < lines.length && /^\d+\. /.test(lines[i])) {
+                        oitems.push('<li>' + renderInline(lines[i].replace(/^\d+\. /, '')) + '</li>');
                         i++;
                     }
                     out.push('<ol class="md-ol">' + oitems.join('') + '</ol>');
@@ -1212,7 +1210,7 @@
                     i++; continue;
                 }
 
-                // ---- 普通段落 ----
+                // ---- 普通段落（原样显示，不做任何裁剪） ----
                 out.push('<div class="md-p">' + renderInline(line) + '</div>');
                 i++;
             }
