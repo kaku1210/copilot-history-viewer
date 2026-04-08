@@ -109,14 +109,16 @@ export class HistoryWebviewProvider implements vscode.WebviewViewProvider {
                         this.postMessage({ type: 'gitSyncStatus', status: 'error', message: '请先配置 GitHub 私有仓库' });
                         break;
                     }
-                    this.postMessage({ type: 'gitSyncStatus', status: 'syncing', message: '正在推送...' });
+                    this.postMessage({ type: 'gitSyncStatus', status: 'syncing', message: '正在收集本地聊天记录...' });
                     try {
                         const metaContent = this.dataService.getRawMetadata();
                         const sessions = await this.dataService.getSessions({ archiveMode: 'all' });
+                        const jsonlFiles = this.dataService.getLocalJsonlFiles();
+                        this.postMessage({ type: 'gitSyncStatus', status: 'syncing', message: `共收集到 ${jsonlFiles.length} 个记录文件，开始推送...` });
                         await this._gitSync.push(metaContent, sessions, (msg) => {
                             this.postMessage({ type: 'gitSyncStatus', status: 'syncing', message: msg });
-                        });
-                        this.postMessage({ type: 'gitSyncStatus', status: 'success', message: '✅ 推送成功' });
+                        }, jsonlFiles);
+                        this.postMessage({ type: 'gitSyncStatus', status: 'success', message: `✅ 推送成功（含 ${jsonlFiles.length} 个聊天记录文件）` });
                     } catch (e: any) {
                         this.postMessage({ type: 'gitSyncStatus', status: 'error', message: '❌ ' + (e.message || '推送失败') });
                     }
@@ -130,13 +132,20 @@ export class HistoryWebviewProvider implements vscode.WebviewViewProvider {
                     }
                     this.postMessage({ type: 'gitSyncStatus', status: 'syncing', message: '正在拉取...' });
                     try {
-                        const content = await this._gitSync.pull((msg) => {
-                            this.postMessage({ type: 'gitSyncStatus', status: 'syncing', message: msg });
-                        });
-                        if (content) {
-                            this.dataService.applyRawMetadata(content);
+                        let jsonlCount = 0;
+                        const metaContent = await this._gitSync.pull(
+                            (msg) => { this.postMessage({ type: 'gitSyncStatus', status: 'syncing', message: msg }); },
+                            (filename, content) => {
+                                this.dataService.saveCloudJsonlFile(filename, content);
+                                jsonlCount++;
+                            }
+                        );
+                        if (metaContent) {
+                            this.dataService.applyRawMetadata(metaContent);
+                        }
+                        if (metaContent || jsonlCount > 0) {
                             await this.sendSessionsToWebview(this._lastFilter);
-                            this.postMessage({ type: 'gitSyncStatus', status: 'success', message: '✅ 拉取成功，数据已更新' });
+                            this.postMessage({ type: 'gitSyncStatus', status: 'success', message: `✅ 拉取成功（含 ${jsonlCount} 个聊天记录文件），数据已更新` });
                         } else {
                             this.postMessage({ type: 'gitSyncStatus', status: 'success', message: '远端暂无数据' });
                         }
@@ -148,13 +157,14 @@ export class HistoryWebviewProvider implements vscode.WebviewViewProvider {
             }
         });
 
-        // 自动拉取
+        // 自动拉取（启动时）
         const cfg = this._gitSync.getConfig();
         if (cfg?.autoSync && this._gitSync.isConfigured()) {
-            this._gitSync.pull().then(content => {
-                if (content) {
-                    this.dataService.applyRawMetadata(content);
-                }
+            this._gitSync.pull(
+                undefined,
+                (filename, content) => { this.dataService.saveCloudJsonlFile(filename, content); }
+            ).then(metaContent => {
+                if (metaContent) { this.dataService.applyRawMetadata(metaContent); }
             }).catch(() => {});
         }
     }

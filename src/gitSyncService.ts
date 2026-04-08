@@ -1,8 +1,6 @@
-import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as https from 'https';
-import * as http from 'http';
 import { GitSyncConfig, ChatSession } from './types';
 
 /**
@@ -156,12 +154,26 @@ export class GitSyncService {
     // ===== Push / Pull =====
 
     /**
-     * 推送：上传 metadata.json + sessions.md
+     * 列出 GitHub 仓库某目录下的所有文件名
+     */
+    private async listRemoteFiles(dirPath: string): Promise<string[]> {
+        try {
+            const res = await this.apiRequest('GET', `/contents/${dirPath}?ref=${this.config!.branch}`);
+            if (Array.isArray(res)) {
+                return res.filter((f: any) => f.type === 'file').map((f: any) => f.name as string);
+            }
+        } catch { }
+        return [];
+    }
+
+    /**
+     * 推送：上传 metadata.json + sessions.md + 所有本地 .jsonl
      */
     async push(
         metadataContent: string,
         sessions: ChatSession[],
-        onProgress?: (msg: string) => void
+        onProgress?: (msg: string) => void,
+        jsonlFiles?: Array<{ filename: string; content: string }>
     ): Promise<void> {
         if (!this.isConfigured()) { throw new Error('请先配置 GitHub 私有仓库'); }
 
@@ -175,24 +187,68 @@ export class GitSyncService {
         const md = this.generateMarkdown(sessions);
         await this.uploadFile('sessions.md', md, commitMsg);
 
+        // 上传 .jsonl 原始文件
+        if (jsonlFiles && jsonlFiles.length > 0) {
+            onProgress?.(`正在上传 ${jsonlFiles.length} 个聊天记录文件...`);
+            let uploaded = 0;
+            for (const file of jsonlFiles) {
+                try {
+                    await this.uploadFile(`jsonl/${file.filename}`, file.content, commitMsg);
+                    uploaded++;
+                    if (uploaded % 5 === 0 || uploaded === jsonlFiles.length) {
+                        onProgress?.(`已上传 ${uploaded}/${jsonlFiles.length} 个文件...`);
+                    }
+                } catch (e: any) {
+                    console.error(`上传 ${file.filename} 失败:`, e.message);
+                }
+            }
+        }
+
         onProgress?.('推送完成');
     }
 
     /**
-     * 拉取：下载 metadata.json 并返回内容
-     * 调用方负责写入本地文件
+     * 拉取：下载 metadata.json + 所有远端 .jsonl
+     * 返回 metadata 内容；.jsonl 通过回调写入本地
      */
-    async pull(onProgress?: (msg: string) => void): Promise<string | null> {
+    async pull(
+        onProgress?: (msg: string) => void,
+        onJsonl?: (filename: string, content: string) => void
+    ): Promise<string | null> {
         if (!this.isConfigured()) { throw new Error('请先配置 GitHub 私有仓库'); }
 
         onProgress?.('正在拉取 metadata.json...');
-        const content = await this.downloadFile('metadata.json');
-        if (content) {
+        const metaContent = await this.downloadFile('metadata.json');
+
+        // 拉取远端 .jsonl 文件列表
+        onProgress?.('正在获取聊天记录文件列表...');
+        const remoteFiles = await this.listRemoteFiles('jsonl');
+
+        if (remoteFiles.length > 0) {
+            onProgress?.(`正在拉取 ${remoteFiles.length} 个聊天记录文件...`);
+            let downloaded = 0;
+            for (const filename of remoteFiles) {
+                try {
+                    const content = await this.downloadFile(`jsonl/${filename}`);
+                    if (content && onJsonl) {
+                        onJsonl(filename, content);
+                        downloaded++;
+                        if (downloaded % 5 === 0 || downloaded === remoteFiles.length) {
+                            onProgress?.(`已拉取 ${downloaded}/${remoteFiles.length} 个文件...`);
+                        }
+                    }
+                } catch (e: any) {
+                    console.error(`拉取 ${filename} 失败:`, e.message);
+                }
+            }
+        }
+
+        if (metaContent || remoteFiles.length > 0) {
             onProgress?.('拉取完成');
         } else {
             onProgress?.('远端暂无数据');
         }
-        return content;
+        return metaContent;
     }
 
     /** 验证 token 和仓库是否可访问 */

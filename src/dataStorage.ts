@@ -69,36 +69,91 @@ export class DataStorageService {
 
     /**
      * 主入口：加载所有 Copilot Chat 聊天记录
+     * 同时读取本地 workspaceStorage 和 cloud cache（拉取的 .jsonl）
      */
     async loadCopilotSessions(): Promise<ChatSession[]> {
         const sessions: ChatSession[] = [];
         const wsDirs = this.getWorkspaceStorageDirs();
 
+        // 1. 读取本地 workspaceStorage
         for (const wsDir of wsDirs) {
             const chatSessionsDir = path.join(wsDir, 'chatSessions');
             if (!fs.existsSync(chatSessionsDir)) continue;
-
             try {
                 const files = fs.readdirSync(chatSessionsDir).filter(f => f.endsWith('.jsonl'));
                 for (const file of files) {
                     try {
-                        const filePath = path.join(chatSessionsDir, file);
-                        const session = this.parseJsonlFile(filePath);
-                        if (session && session.turns.length > 0) {
-                            sessions.push(session);
-                        }
-                    } catch (e) {
-                        console.error(`Error parsing ${file}:`, e);
-                    }
+                        const session = this.parseJsonlFile(path.join(chatSessionsDir, file));
+                        if (session && session.turns.length > 0) { sessions.push(session); }
+                    } catch (e) { console.error(`Error parsing ${file}:`, e); }
                 }
-            } catch (e) {
-                console.error(`Error reading ${chatSessionsDir}:`, e);
-            }
+            } catch (e) { console.error(`Error reading ${chatSessionsDir}:`, e); }
+        }
+
+        // 2. 读取云同步缓存的 .jsonl（另一台设备推送过来的）
+        const cloudCacheDir = path.join(this.cachePath, 'jsonl');
+        if (fs.existsSync(cloudCacheDir)) {
+            try {
+                const files = fs.readdirSync(cloudCacheDir).filter(f => f.endsWith('.jsonl'));
+                for (const file of files) {
+                    try {
+                        const session = this.parseJsonlFile(path.join(cloudCacheDir, file));
+                        if (session && session.turns.length > 0) { sessions.push(session); }
+                    } catch (e) { console.error(`Error parsing cloud cache ${file}:`, e); }
+                }
+            } catch (e) { console.error('Error reading cloud cache dir:', e); }
         }
 
         // 去重 + 排序 + 合并元数据
         const unique = this.deduplicateSessions(sessions);
         return this.mergeMetadata(unique);
+    }
+
+    /**
+     * 收集本地所有 .jsonl 文件（供推送到 GitHub）
+     * 返回 { filename, content }[]
+     */
+    getLocalJsonlFiles(): Array<{ filename: string; content: string }> {
+        const result: Array<{ filename: string; content: string }> = [];
+        const wsDirs = this.getWorkspaceStorageDirs();
+        const seen = new Set<string>();
+
+        for (const wsDir of wsDirs) {
+            const chatSessionsDir = path.join(wsDir, 'chatSessions');
+            if (!fs.existsSync(chatSessionsDir)) continue;
+            try {
+                const files = fs.readdirSync(chatSessionsDir).filter(f => f.endsWith('.jsonl'));
+                for (const file of files) {
+                    if (seen.has(file)) continue;
+                    seen.add(file);
+                    try {
+                        const content = fs.readFileSync(path.join(chatSessionsDir, file), 'utf-8');
+                        result.push({ filename: file, content });
+                    } catch { }
+                }
+            } catch { }
+        }
+        return result;
+    }
+
+    /**
+     * 将从 GitHub 拉取的 .jsonl 写入本地 cache/jsonl/
+     */
+    saveCloudJsonlFile(filename: string, content: string): void {
+        const cloudCacheDir = path.join(this.cachePath, 'jsonl');
+        if (!fs.existsSync(cloudCacheDir)) { fs.mkdirSync(cloudCacheDir, { recursive: true }); }
+        fs.writeFileSync(path.join(cloudCacheDir, filename), content, 'utf-8');
+    }
+
+    /**
+     * 列出 cache/jsonl/ 目录下已有的文件名集合
+     */
+    getCloudJsonlFileNames(): Set<string> {
+        const cloudCacheDir = path.join(this.cachePath, 'jsonl');
+        if (!fs.existsSync(cloudCacheDir)) return new Set();
+        try {
+            return new Set(fs.readdirSync(cloudCacheDir).filter(f => f.endsWith('.jsonl')));
+        } catch { return new Set(); }
     }
 
     /**
