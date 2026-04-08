@@ -378,13 +378,25 @@
             currentSortBy = this.value;
             applyFilters();
         });
+        // ===== 面板互斥开关 =====
+        // panelId: 'calendarPanel' | 'syncPanel' | 'aboutPanel'
+        function openPanel(panelId) {
+            var panels = ['calendarPanel', 'syncPanel', 'aboutPanel'];
+            panels.forEach(function(id) {
+                var el = document.getElementById(id);
+                if (id === panelId) {
+                    el.classList.toggle('visible');
+                } else {
+                    el.classList.remove('visible');
+                }
+            });
+        }
+
         // ===== 关于/更新 面板 =====
         var _updateVsixUrl = '';
 
-        // 打开面板
         document.getElementById('aboutBtn').addEventListener('click', function() {
-            var panel = document.getElementById('aboutPanel');
-            panel.classList.toggle('visible');
+            openPanel('aboutPanel');
         });
 
         // 面板内所有链接/按钮点击
@@ -435,7 +447,8 @@
                 );
                 dlBtn.style.display = 'inline-block';
                 aboutBtn.classList.add('has-update');
-                // 有更新时自动展开面板
+                // 有更新时自动展开面板（关闭其他面板）
+                openPanel('aboutPanel');
                 document.getElementById('aboutPanel').classList.add('visible');
             } else if (msg.currentVersion && msg.currentVersion !== '?') {
                 setUpdateStatus('latest', '&#9989;',
@@ -451,9 +464,8 @@
 
         // ===== 同步面板 =====
         document.getElementById('syncBtn').addEventListener('click', function() {
-            var panel = document.getElementById('syncPanel');
-            panel.classList.toggle('visible');
-            if (panel.classList.contains('visible')) {
+            openPanel('syncPanel');
+            if (document.getElementById('syncPanel').classList.contains('visible')) {
                 vscode.postMessage({ type: 'getGitConfig' });
             }
         });
@@ -504,9 +516,8 @@
             vscode.postMessage({ type: 'refresh' });
         });
         document.getElementById('calendarBtn').addEventListener('click', function() {
-            var panel = document.getElementById('calendarPanel');
-            panel.classList.toggle('visible');
-            if (panel.classList.contains('visible')) { renderCalendar(); }
+            openPanel('calendarPanel');
+            if (document.getElementById('calendarPanel').classList.contains('visible')) { renderCalendar(); }
         });
         document.getElementById('dateActiveToggle').addEventListener('click', function() {
             // 点击"日期筛选中"标签 -> 清除
