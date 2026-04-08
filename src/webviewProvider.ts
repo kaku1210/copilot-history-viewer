@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import * as os from 'os';
 import * as https from 'https';
-import { execFile } from 'child_process';
+import { execFile, spawn } from 'child_process';
 import { DataStorageService } from './dataStorage';
 import { GitSyncService } from './gitSyncService';
 import { checkForUpdate } from './updateChecker';
@@ -39,31 +39,41 @@ async function downloadVsix(url: string, onProgress?: (msg: string) => void): Pr
     });
 }
 
-/** 用 VS Code CLI 安装 .vsix */
+/** 用 VS Code CLI 安装 .vsix（detached 模式，防止在 VS Code 内部调用时卡死） */
 async function installVsix(vsixPath: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-        // 尝试找 code CLI
-        const candidates = [
-            process.execPath.replace(/electron\.exe$/i, 'bin/code.cmd'),
-            'code',
-        ];
-        // 直接使用环境变量 VSCODE_CWD 附近的 code 命令
-        const codeExe = process.env['VSCODE_PORTABLE']
-            ? path.join(process.env['VSCODE_PORTABLE'], '..', 'bin', 'code')
-            : candidates[1];
+    // 按优先级查找 code.cmd 路径
+    const codeCandidates = [
+        path.join(process.env['LOCALAPPDATA'] || '', 'Programs', 'Microsoft VS Code', 'bin', 'code.cmd'),
+        process.execPath.replace(/[Cc]ode\.exe$/i, 'bin\\code.cmd'),
+        'code.cmd',
+        'code',
+    ];
+    const codeExe = codeCandidates.find(p => {
+        try { return p !== 'code.cmd' && p !== 'code' && fs.existsSync(p); } catch { return false; }
+    }) || codeCandidates[2];
 
-        execFile(codeExe, ['--install-extension', vsixPath, '--force'], (err) => {
-            if (err) {
-                // fallback: 找常见路径
-                const fallback = path.join(
-                    process.env['LOCALAPPDATA'] || os.homedir(),
-                    'Programs', 'Microsoft VS Code', 'bin', 'code.cmd'
-                );
-                execFile(fallback, ['--install-extension', vsixPath, '--force'], (err2) => {
-                    if (err2) { reject(new Error('安装失败，请手动安装：' + vsixPath)); }
-                    else { resolve(); }
-                });
-            } else { resolve(); }
+    return new Promise((resolve, reject) => {
+        // detached + unref：子进程独立运行，不阻塞父进程
+        const child = spawn(codeExe, ['--install-extension', vsixPath, '--force'], {
+            detached: true,
+            stdio: 'ignore',
+            shell: true,
+            windowsHide: true,
+        });
+        child.unref();
+
+        // 给 3 秒等子进程启动，之后无论如何都返回成功
+        // （实际安装会在后台继续，VS Code 会自动提示重载）
+        const timer = setTimeout(() => resolve(), 3000);
+
+        child.on('error', (err) => {
+            clearTimeout(timer);
+            reject(new Error('启动安装进程失败: ' + err.message + '\n请手动安装: ' + vsixPath));
+        });
+        child.on('close', (code) => {
+            clearTimeout(timer);
+            if (code === 0 || code === null) { resolve(); }
+            else { reject(new Error(`安装退出码: ${code}\n请手动安装: ${vsixPath}`)); }
         });
     });
 }
