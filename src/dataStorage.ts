@@ -285,7 +285,17 @@ export class DataStorageService {
                 responses.push({ role: 'assistant', content: fullResponseText, timestamp });
             }
 
-            turns.push({ id: reqId, userMessage, responses, timestamp });
+            // 提取模型 ID：优先用 req.modelId，其次 req.model?.id
+            const rawModelId: string = req.modelId || req.model?.id || req.model?.identifier || '';
+            // 去掉 "copilot/" 前缀，只保留模型名
+            const modelId = rawModelId.replace(/^copilot\//, '');
+
+            // 提取 agent 信息
+            const agentId: string = req.agent?.id || '';
+            // modeInfo.modeId: "agent"/"ask"/"edit" 更简洁
+            const agentName: string = req.modeInfo?.modeId || req.agent?.name || '';
+
+            turns.push({ id: reqId, userMessage, responses, timestamp, modelId, agentId, agentName });
         }
 
         if (turns.length === 0) return null;

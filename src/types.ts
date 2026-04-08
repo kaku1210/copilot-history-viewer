@@ -19,6 +19,9 @@ export interface ChatTurn {
     responses: ChatMessage[];
     timestamp: string;
     note?: string;         // 提问级别的备注
+    modelId?: string;      // 使用的模型 ID，如 "copilot/gpt-5-mini"
+    agentId?: string;      // agent ID，如 "github.copilot.editsAgent"
+    agentName?: string;    // agent 显示名称，如 "agent" / "ask"
 }
 
 /**

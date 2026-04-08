@@ -121,6 +121,10 @@
         .md-code-block code { font-family: 'Consolas', 'Courier New', monospace; font-size: 11px; color: #d4d4d4; white-space: pre; }
         .md-link { color: var(--accent); text-decoration: none; }
         .md-link:hover { text-decoration: underline; }
+        /* 模型/Agent 标签 */
+        .turn-tag { display: inline-flex; align-items: center; font-size: 10px; padding: 1px 5px; border-radius: 3px; margin-left: 3px; font-weight: 500; vertical-align: middle; }
+        .turn-tag-model { background: rgba(86,156,214,0.15); color: #569cd6; border: 1px solid rgba(86,156,214,0.3); }
+        .turn-tag-agent { background: rgba(78,201,176,0.15); color: #4ec9b0; border: 1px solid rgba(78,201,176,0.3); }
         /* 工具调用折叠组 - 参考 Copilot 原版样式 */
         .md-tool-group { margin: 3px 0; }
         .md-tool-summary {
@@ -930,12 +934,20 @@
                 var tid = turn.id;
                 var timeStr = formatDateTime(turn.timestamp);
                 var noteHtml = turn.note ? '<div class="turn-note">&#128221; ' + escapeHtml(turn.note) + '</div>' : '';
+                var metaTags = '';
+                if (turn.modelId) {
+                    metaTags += '<span class="turn-tag turn-tag-model" title="模型">' + escapeHtml(turn.modelId) + '</span>';
+                }
+                if (turn.agentName) {
+                    var agentLabel = turn.agentName === 'agent' ? '⚙ Agent' : turn.agentName === 'ask' ? '💬 Ask' : turn.agentName === 'edit' ? '✏ Edit' : escapeHtml(turn.agentName);
+                    metaTags += '<span class="turn-tag turn-tag-agent" title="模式">' + agentLabel + '</span>';
+                }
                 return '<div class="turn-item" data-turn-id="' + escHtml(tid) + '">' +
                     '<div class="turn-header">' +
                         '<span class="arrow">&#9658;</span>' +
                         '<div class="turn-question">' +
                             '<div class="turn-question-text">&#128172; ' + escapeHtml(turn.userMessage) + '</div>' +
-                            '<div class="turn-meta">&#128336; ' + timeStr + ' &nbsp;·&nbsp; ' + turn.responses.length + ' 条回复</div>' +
+                            '<div class="turn-meta">&#128336; ' + timeStr + ' &nbsp;·&nbsp; ' + turn.responses.length + ' 条回复' + (metaTags ? ' &nbsp;' + metaTags : '') + '</div>' +
                             noteHtml +
                         '</div>' +
                         '<div class="turn-actions">' +
