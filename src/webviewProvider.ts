@@ -253,6 +253,20 @@ export class HistoryWebviewProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    // 防抖 timer，避免文件变化时短时间内多次刷新
+    private _refreshTimer: NodeJS.Timeout | undefined;
+
+    /** 文件变化时调用，防抖 1.5 秒后增量刷新 */
+    public refreshIncremental() {
+        if (this._refreshTimer) { clearTimeout(this._refreshTimer); }
+        this._refreshTimer = setTimeout(async () => {
+            this._refreshTimer = undefined;
+            if (this._view?.visible) {
+                await this.sendSessionsToWebview(this._lastFilter);
+            }
+        }, 1500);
+    }
+
     private async _checkUpdateOnStartup(manual = false) {
         try {
             // 从 package.json 读取当前版本

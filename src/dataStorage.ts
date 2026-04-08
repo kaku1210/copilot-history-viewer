@@ -68,6 +68,15 @@ export class DataStorageService {
     }
 
     /**
+     * 返回需要监听的根目录（供 FileSystemWatcher 使用）
+     */
+    public getWatchPaths(): string[] {
+        const appData = process.env.APPDATA || '';
+        const wsBase = path.join(appData, 'Code', 'User', 'workspaceStorage');
+        return fs.existsSync(wsBase) ? [wsBase] : [];
+    }
+
+    /**
      * 主入口：加载所有 Copilot Chat 聊天记录
      * 本地和云端分别加载，不混合去重，保持数据隔离
      */

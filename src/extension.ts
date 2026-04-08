@@ -8,14 +8,30 @@ export function activate(context: vscode.ExtensionContext) {
     // 初始化数据服务
     const dataService = new DataStorageService(context);
 
-    // 注册 WebView 侧边栏
+    // 注册 WebView 侧边栏（retainContextWhenHidden：切换侧边栏时不销毁 WebView，避免重复刷新）
     const provider = new HistoryWebviewProvider(context.extensionUri, dataService);
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(
             HistoryWebviewProvider.viewType,
-            provider
+            provider,
+            { webviewOptions: { retainContextWhenHidden: true } }
         )
     );
+
+    // 监听 Copilot .jsonl 文件变化，有新对话时自动刷新
+    const storagePaths = dataService.getWatchPaths();
+    if (storagePaths.length > 0) {
+        const watcher = vscode.workspace.createFileSystemWatcher(
+            new vscode.RelativePattern(
+                vscode.Uri.file(storagePaths[0]),
+                '**/*.jsonl'
+            )
+        );
+        const onFileChange = () => provider.refreshIncremental();
+        watcher.onDidCreate(onFileChange, null, context.subscriptions);
+        watcher.onDidChange(onFileChange, null, context.subscriptions);
+        context.subscriptions.push(watcher);
+    }
 
     // 注册刷新命令
     context.subscriptions.push(
