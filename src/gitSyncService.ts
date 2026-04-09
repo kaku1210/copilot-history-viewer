@@ -199,15 +199,35 @@ export class GitSyncService {
         if (!force && !this.hasLocalChanged(filePath, content)) {
             return false;  // 跳过
         }
-        // 需要拿远端 SHA 才能 PUT（更新已有文件）
-        const remoteSha = await this.getFileSha(filePath);
-        const body: any = {
-            message: commitMsg,
-            content: Buffer.from(content, 'utf-8').toString('base64'),
-            branch: this.config!.branch,
+        const contentBase64 = Buffer.from(content, 'utf-8').toString('base64');
+
+        // 内部执行单次 PUT，传入当前远端 SHA
+        const doPut = async (sha: string | null): Promise<any> => {
+            const body: any = {
+                message: commitMsg,
+                content: contentBase64,
+                branch: this.config!.branch,
+            };
+            if (sha) { body.sha = sha; }
+            return this.apiRequest('PUT', `/contents/${filePath}`, body);
         };
-        if (remoteSha) { body.sha = remoteSha; }
-        const result = await this.apiRequest('PUT', `/contents/${filePath}`, body);
+
+        // 每次上传都实时获取最新 SHA，避免本地缓存过期
+        let remoteSha = await this.getFileSha(filePath);
+        let result: any;
+        try {
+            result = await doPut(remoteSha);
+        } catch (e: any) {
+            // 409 = SHA 过期（其他设备推过），重新获取 SHA 后重试一次
+            if (e.message && e.message.includes('409')) {
+                console.warn(`[GitSync] 409 SHA 冲突，重新获取 ${filePath} 的 SHA 并重试...`);
+                remoteSha = await this.getFileSha(filePath);
+                result = await doPut(remoteSha); // 再失败就向上抛
+            } else {
+                throw e;
+            }
+        }
+
         // 记录同步状态
         const newSha = result?.content?.sha || remoteSha || '';
         this.markSynced(filePath, newSha, content);
