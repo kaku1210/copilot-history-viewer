@@ -2,7 +2,19 @@ import * as https from 'https';
 
 const REPO = 'kaku1210/copilot-history-viewer';
 const RELEASES_URL = `https://github.com/${REPO}/releases`;
-const VSIX_URL = `https://github.com/${REPO}/raw/main/copilot-history-viewer.vsix`;
+
+/** VSIX 下载 URL：通过 GitHub Contents API 获取 download_url，绕过 CDN 缓存 */
+async function getVsixDownloadUrl(token?: string): Promise<string> {
+    try {
+        const apiUrl = `https://api.github.com/repos/${REPO}/contents/copilot-history-viewer.vsix?t=${Date.now()}`;
+        const resp = await fetchJson(apiUrl, token);
+        if (resp.download_url) {
+            return resp.download_url;
+        }
+    } catch { }
+    // fallback: raw URL + 时间戳破缓存
+    return `https://github.com/${REPO}/raw/main/copilot-history-viewer.vsix?t=${Date.now()}`;
+}
 
 /** 获取带缓存破坏参数的 package.json URL，通过 GitHub API 读取（不经过 CDN 缓存） */
 function getPackageUrl(): string {
@@ -59,17 +71,18 @@ function fetchJson(url: string, token?: string): Promise<any> {
 }
 
 export async function checkForUpdate(currentVersion: string, token?: string): Promise<UpdateInfo> {
+    // 先获取动态 VSIX 下载链接（带真实 SHA，绕过 CDN 缓存）
+    const vsixUrl = await getVsixDownloadUrl(token);
     const base: UpdateInfo = {
         hasUpdate: false,
         currentVersion,
         latestVersion: currentVersion,
         releasesUrl: RELEASES_URL,
-        vsixUrl: VSIX_URL,
+        vsixUrl,
     };
     try {
         const apiResp = await fetchJson(getPackageUrl(), token);
         if (!apiResp.content) {
-            // API 限流或错误时 content 字段不存在，抛出详细错误
             throw new Error(apiResp.message || 'GitHub API 返回异常');
         }
         const decoded = Buffer.from(apiResp.content, 'base64').toString('utf-8');
