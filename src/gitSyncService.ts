@@ -215,15 +215,43 @@ export class GitSyncService {
         return true;
     }
 
-    /** 下载单个文件内容 */
+    /** 下载单个文件内容（支持大文件通过 download_url 下载） */
     async downloadFile(filePath: string): Promise<string | null> {
         try {
             const res = await this.apiRequest('GET', `/contents/${filePath}?ref=${this.config!.branch}`);
             if (res.content) {
+                // 小文件：直接 base64 解码
                 return Buffer.from(res.content, 'base64').toString('utf-8');
+            } else if (res.download_url) {
+                // 大文件（>1MB）：GitHub API 不返回 content，需用 download_url 下载原始内容
+                return await this.downloadRawUrl(res.download_url);
             }
         } catch { }
         return null;
+    }
+
+    /** 通过 raw URL 下载文件内容（用于大文件） */
+    private downloadRawUrl(url: string): Promise<string> {
+        return new Promise((resolve, reject) => {
+            const doReq = (reqUrl: string) => {
+                https.get(reqUrl, {
+                    headers: {
+                        'User-Agent': 'copilot-history-viewer',
+                        'Authorization': `token ${this.config!.token}`,
+                    }
+                }, (res) => {
+                    if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                        doReq(res.headers.location);
+                        return;
+                    }
+                    const chunks: Buffer[] = [];
+                    res.on('data', (c) => chunks.push(c));
+                    res.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
+                    res.on('error', reject);
+                }).on('error', reject);
+            };
+            doReq(url);
+        });
     }
 
     // ===== Push / Pull =====
