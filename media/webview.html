@@ -618,9 +618,8 @@
             vscode.postMessage({ type: 'gitPull' });
         });
         document.getElementById('syncPullForceBtn').addEventListener('click', function() {
-            if (confirm('将清空本地同步记录并重新下载所有远端文件，确认继续？')) {
-                vscode.postMessage({ type: 'gitPullForce' });
-            }
+            // WebView 沙盒里 confirm() 不可用，直接发送消息，由后端弹确认框
+            vscode.postMessage({ type: 'gitPullForce' });
         });
 
         function readGitConfigForm() {

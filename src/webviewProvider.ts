@@ -50,13 +50,8 @@ async function installVsix(vsixPath: string): Promise<void> {
 /** 安装完成后仅重载本插件，无需重启整个 VS Code */
 async function reloadExtension(): Promise<void> {
     const extId = 'local-dev.copilot-history-viewer';
-    try {
-        // VS Code 内置单插件重载命令，不影响其他插件
-        await vscode.commands.executeCommand('workbench.extensions.reloadExtension', extId);
-    } catch {
-        // fallback：如果单插件重载失败，回退到全窗口重载
-        await vscode.commands.executeCommand('workbench.action.reloadWindow');
-    }
+    // VS Code 内置单插件重载命令，不影响其他插件，不重启窗口
+    await vscode.commands.executeCommand('workbench.extensions.reloadExtension', extId);
 }
 
 export class HistoryWebviewProvider implements vscode.WebviewViewProvider {
@@ -216,6 +211,13 @@ export class HistoryWebviewProvider implements vscode.WebviewViewProvider {
                         this.postMessage({ type: 'gitSyncStatus', status: 'error', message: '请先配置 GitHub 私有仓库' });
                         break;
                     }
+                    // WebView 沙盒不支持 confirm()，改用 VS Code 原生对话框确认
+                    const confirm = await vscode.window.showWarningMessage(
+                        '将清空本地同步记录并重新下载所有远端文件，确认继续？',
+                        { modal: true },
+                        '确认'
+                    );
+                    if (confirm !== '确认') { break; }
                     this.postMessage({ type: 'gitSyncStatus', status: 'syncing', message: '正在清空同步状态记录...' });
                     try {
                         // 清空 sync-state，强制重新下载所有远端文件
