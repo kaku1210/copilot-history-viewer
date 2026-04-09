@@ -278,13 +278,13 @@ export class GitSyncService {
         // metadata.json
         const metaUploaded = await this.uploadFile('metadata.json', metadataContent, commitMsg);
         metaUploaded ? uploaded++ : skipped++;
-        onProgress?.(metaUploaded ? '✓ 已上传 metadata.json' : '— metadata.json 无变化，跳过');
+        onProgress?.(metaUploaded ? '✓ metadata.json 已更新' : '— metadata.json 无变化（归档/备注/置顶未改动）');
 
         // sessions.md
         const md = this.generateMarkdown(sessions);
         const mdUploaded = await this.uploadFile('sessions.md', md, commitMsg);
         mdUploaded ? uploaded++ : skipped++;
-        onProgress?.(mdUploaded ? '✓ 已上传 sessions.md' : '— sessions.md 无变化，跳过');
+        onProgress?.(mdUploaded ? '✓ sessions.md 已更新' : '— sessions.md 无变化');
 
         // jsonl 文件（增量）
         if (jsonlFiles && jsonlFiles.length > 0) {
