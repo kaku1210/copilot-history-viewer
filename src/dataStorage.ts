@@ -104,20 +104,39 @@ export class DataStorageService {
         }
 
         // 2. 读取云同步缓存的 .jsonl，标记 source='cloud'
-        //    不与本地去重，完全隔离
         const cloudCacheDir = path.join(this.cachePath, 'jsonl');
         if (fs.existsSync(cloudCacheDir)) {
-            // 收集本地已有的 sessionId，云端中同 ID 的跳过（本机自己推上去的）
-            const localIds = new Set(localSessions.map(s => s.sessionId));
+            // 建立本地 sessionId → turns数量 的映射
+            const localTurnCount = new Map<string, number>(
+                localSessions.map(s => [s.sessionId, s.turns.length])
+            );
             try {
                 const files = fs.readdirSync(cloudCacheDir).filter(f => f.endsWith('.jsonl'));
                 for (const file of files) {
                     try {
                         const session = this.parseJsonlFile(path.join(cloudCacheDir, file));
-                        if (session && session.turns.length > 0 && !localIds.has(session.sessionId)) {
+                        if (!session || session.turns.length === 0) continue;
+
+                        const localCount = localTurnCount.get(session.sessionId);
+                        if (localCount === undefined) {
+                            // 本地没有这个 session → 完全是其他设备的，显示为云端
                             session.source = 'cloud';
                             cloudSessions.push(session);
+                        } else if (session.turns.length > localCount) {
+                            // 云端比本地有更多对话（其他设备继续聊了）→ 追加额外的 turns
+                            const localSession = localSessions.find(s => s.sessionId === session.sessionId);
+                            if (localSession) {
+                                const localTurnIds = new Set(localSession.turns.map(t => t.id));
+                                const extraTurns = session.turns.filter(t => !localTurnIds.has(t.id));
+                                if (extraTurns.length > 0) {
+                                    // 把额外的 turns 追加到本地 session 里，标记来源
+                                    extraTurns.forEach(t => (t as any).source = 'cloud');
+                                    localSession.turns.push(...extraTurns);
+                                    localSession.updatedAt = session.updatedAt || localSession.updatedAt;
+                                }
+                            }
                         }
+                        // 云端 turns <= 本地：跳过（本地数据已是最新）
                     } catch (e) { console.error(`Error parsing cloud cache ${file}:`, e); }
                 }
             } catch (e) { console.error('Error reading cloud cache dir:', e); }
