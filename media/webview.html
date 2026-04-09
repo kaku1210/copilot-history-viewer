@@ -180,6 +180,15 @@
         .source-divider-count { font-weight: normal; opacity: 0.7; font-size: 10px; }
         .cloud-badge { background: #1a6a9a !important; color: #7ecfff !important; }
         .session-item[data-source="cloud"] .session-header { border-left: 2px solid #1a6a9a; }
+        /* 布局切换按钮 */
+        .layout-toggle-wrap { display: flex; gap: 2px; align-items: center; }
+        .layout-btn { font-size: 13px; padding: 3px 7px; background: var(--input-bg); color: var(--fg); border: 1px solid var(--input-border); border-radius: 3px; cursor: pointer; opacity: 0.55; line-height: 1; }
+        .layout-btn.active { background: var(--btn-bg); color: var(--btn-fg); border-color: var(--btn-bg); opacity: 1; }
+        /* 混合列表模式：本地/云端标识 */
+        .session-item[data-source="local"] .session-header  { border-left: 2px solid var(--border); }
+        .session-item[data-source="cloud"].merged .session-header { border-left: 2px solid #1a6a9a; }
+        .local-tag  { display: inline-flex; align-items: center; font-size: 10px; padding: 1px 5px; border-radius: 3px; margin-left: 3px;
+                      background: rgba(100,100,100,0.15); color: #aaa; border: 1px solid rgba(150,150,150,0.25); }
 
         /* ===== 关于/更新 面板 ===== */
         .about-panel { display: none; padding: 12px; border-bottom: 2px solid var(--border); background: var(--bg); }
@@ -262,6 +271,10 @@
                 <span id="sortArrowDown" style="font-size:10px;line-height:1.2;color:var(--accent);opacity:1;">▼</span>
             </button>
             <button class="toggle-btn" id="dateActiveToggle" style="display:none;"></button>
+            <div class="layout-toggle-wrap" title="列表布局">
+                <button class="layout-btn active" id="layoutSplitBtn" title="分区显示（本地/云端分开）">⊟</button>
+                <button class="layout-btn" id="layoutMergedBtn" title="混合显示（统一排序）">☰</button>
+            </div>
         </div>
     </div>
     <div class="calendar-panel" id="calendarPanel">
@@ -393,6 +406,7 @@
         var currentSortBy = 'updatedAt';   // 'updatedAt' | 'createdAt'
         var currentSortDir = 'desc';       // 'desc'=降序(新→旧) | 'asc'=升序(旧→新)
         var currentKeyword = '';           // 搜索词（刷新按钮会清空）
+        var listLayout = 'split';          // 'split'=分区 | 'merged'=混合
 
         // ===== 日历状态（不持久化，reload 恢复默认） =====
         var calMode = 'single';
@@ -477,6 +491,29 @@
         document.getElementById('sortDirBtn').addEventListener('click', function() {
             currentSortDir = currentSortDir === 'desc' ? 'asc' : 'desc';
             updateSortDirBtn();
+            applyFilters();
+        });
+
+        // ===== 布局切换 =====
+        function updateLayoutBtns() {
+            document.getElementById('layoutSplitBtn').classList.toggle('active', listLayout === 'split');
+            document.getElementById('layoutMergedBtn').classList.toggle('active', listLayout === 'merged');
+        }
+        document.getElementById('layoutSplitBtn').addEventListener('click', function() {
+            if (listLayout === 'split') return;
+            listLayout = 'split';
+            updateLayoutBtns();
+            renderSessions(allSessions.filter(function(s) {
+                // 重用当前已过滤数据（已在 allSessions 中），重新渲染即可
+                return true;
+            }));
+            // 实际上直接用后端最新数据
+            applyFilters();
+        });
+        document.getElementById('layoutMergedBtn').addEventListener('click', function() {
+            if (listLayout === 'merged') return;
+            listLayout = 'merged';
+            updateLayoutBtns();
             applyFilters();
         });
         // ===== 面板互斥开关 =====
@@ -929,17 +966,44 @@
             var localSessions = sessions.filter(function(s) { return s.source !== 'cloud'; });
             var cloudSessions = sessions.filter(function(s) { return s.source === 'cloud'; });
             var totalTurns = sessions.reduce(function(sum, s) { return sum + s.turns.length; }, 0);
-            var cloudInfo = cloudSessions.length > 0 ? ('&#65292;&#9729; 云端 ' + cloudSessions.length + ' 个') : '';
-            stats.textContent = '本地 ' + localSessions.length + ' 个对话' + cloudInfo + '&#65292;共 ' + totalTurns + ' 条提问';
+            var cloudInfo = cloudSessions.length > 0 ? ('，☁ 云端 ' + cloudSessions.length + ' 个') : '';
+            stats.textContent = '本地 ' + localSessions.length + ' 个对话' + cloudInfo + '，共 ' + totalTurns + ' 条提问';
 
-            var html = localSessions.map(buildSessionHtml).join('');
-
-            if (cloudSessions.length > 0) {
-                html += '<li class="source-divider">' +
-                    '<span>&#9729; 云端同步记录（来自其他设备）</span>' +
-                    '<span class="source-divider-count">' + cloudSessions.length + ' 个</span>' +
-                '</li>';
-                html += cloudSessions.map(buildSessionHtml).join('');
+            var html = '';
+            if (listLayout === 'split') {
+                // ── 分区布局：本地在上，云端在下，独立分组 ──
+                html = localSessions.map(buildSessionHtml).join('');
+                if (cloudSessions.length > 0) {
+                    html += '<li class="source-divider">' +
+                        '<span>&#9729; 云端同步记录（来自其他设备）</span>' +
+                        '<span class="source-divider-count">' + cloudSessions.length + ' 个</span>' +
+                    '</li>';
+                    html += cloudSessions.map(buildSessionHtml).join('');
+                }
+            } else {
+                // ── 混合布局：所有会话按当前排序规则统一混排 ──
+                // 给 cloudSessions 的 li 加 merged class 以便特殊样式
+                var sortKey = currentSortBy === 'createdAt' ? 'createdAt' : 'updatedAt';
+                var merged = sessions.slice().sort(function(a, b) {
+                    var ta = new Date(a[sortKey]).getTime() || 0;
+                    var tb = new Date(b[sortKey]).getTime() || 0;
+                    return currentSortDir === 'asc' ? ta - tb : tb - ta;
+                });
+                // 置顶逻辑：global > local > none（与分区逻辑一致，sessions 已由后端排好置顶，这里在置顶 bucket 内保持稳定）
+                var pinOrder = { global: 0, local: 1 };
+                merged.sort(function(a, b) {
+                    var pa = pinOrder[a.pinType] !== undefined ? pinOrder[a.pinType] : 2;
+                    var pb = pinOrder[b.pinType] !== undefined ? pinOrder[b.pinType] : 2;
+                    return pa - pb;
+                });
+                html = merged.map(function(s) {
+                    var base = buildSessionHtml(s);
+                    // 在 merged 模式下对 cloud session 追加 merged class
+                    if (s.source === 'cloud') {
+                        base = base.replace('class="session-item"', 'class="session-item merged"');
+                    }
+                    return base;
+                }).join('');
             }
 
             list.innerHTML = html;
