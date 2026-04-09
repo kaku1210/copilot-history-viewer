@@ -86,6 +86,7 @@ export type WebviewMessage =
     | { type: 'refresh' }
     | { type: 'gitPush' }
     | { type: 'gitPull' }
+    | { type: 'gitPullForce' }
     | { type: 'saveGitConfig'; config: GitSyncConfig }
     | { type: 'getGitConfig' }
     | { type: 'openSettings' }

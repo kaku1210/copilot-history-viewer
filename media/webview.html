@@ -326,6 +326,9 @@
             <button class="sync-btn secondary" id="syncPushBtn">⬆️ 推送到远端</button>
             <button class="sync-btn secondary" id="syncPullBtn">⬇️ 从远端拉取</button>
         </div>
+        <div class="sync-action-row" style="margin-top:4px;">
+            <button class="sync-btn secondary" id="syncPullForceBtn" style="width:100%;opacity:0.75;font-size:11px;" title="清空本地同步状态记录，重新下载所有远端文件（用于修复同步不一致问题）">⟳ 强制全量拉取（修复同步）</button>
+        </div>
         <div class="sync-status" id="syncStatus"></div>
     </div>
 
@@ -613,6 +616,11 @@
         });
         document.getElementById('syncPullBtn').addEventListener('click', function() {
             vscode.postMessage({ type: 'gitPull' });
+        });
+        document.getElementById('syncPullForceBtn').addEventListener('click', function() {
+            if (confirm('将清空本地同步记录并重新下载所有远端文件，确认继续？')) {
+                vscode.postMessage({ type: 'gitPullForce' });
+            }
         });
 
         function readGitConfigForm() {

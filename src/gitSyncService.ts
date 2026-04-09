@@ -71,6 +71,12 @@ export class GitSyncService {
         } catch { }
     }
 
+    /** 清空本地同步状态，下次 pull 时强制重新下载所有远端文件 */
+    public clearSyncState(): void {
+        this.syncState = { version: 1, files: {} };
+        this.saveSyncState();
+    }
+
     /** 检查本地内容是否与上次同步时一致（即是否有变化需要推送） */
     private hasLocalChanged(filePath: string, content: string): boolean {
         const record = this.syncState.files[filePath];

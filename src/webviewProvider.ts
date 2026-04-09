@@ -211,6 +211,32 @@ export class HistoryWebviewProvider implements vscode.WebviewViewProvider {
                     break;
                 }
 
+                case 'gitPullForce': {
+                    if (!this._gitSync.isConfigured()) {
+                        this.postMessage({ type: 'gitSyncStatus', status: 'error', message: '请先配置 GitHub 私有仓库' });
+                        break;
+                    }
+                    this.postMessage({ type: 'gitSyncStatus', status: 'syncing', message: '正在清空同步状态记录...' });
+                    try {
+                        // 清空 sync-state，强制重新下载所有远端文件
+                        this._gitSync.clearSyncState();
+                        let jsonlCount = 0;
+                        const metaContent = await this._gitSync.pull(
+                            (msg) => { this.postMessage({ type: 'gitSyncStatus', status: 'syncing', message: msg }); },
+                            (filename, content) => {
+                                this.dataService.saveCloudJsonlFile(filename, content);
+                                jsonlCount++;
+                            }
+                        );
+                        if (metaContent) { this.dataService.applyRawMetadata(metaContent); }
+                        await this.sendSessionsToWebview(null);
+                        this.postMessage({ type: 'gitSyncStatus', status: 'success', message: `✅ 强制全量拉取完成（${jsonlCount} 个文件），数据已更新` });
+                    } catch (e: any) {
+                        this.postMessage({ type: 'gitSyncStatus', status: 'error', message: '❌ ' + (e.message || '拉取失败') });
+                    }
+                    break;
+                }
+
                 case 'gitPull': {
                     if (!this._gitSync.isConfigured()) {
                         this.postMessage({ type: 'gitSyncStatus', status: 'error', message: '请先配置 GitHub 私有仓库' });
