@@ -51,11 +51,8 @@ async function installVsix(vsixPath: string): Promise<void> {
 async function reloadExtension(): Promise<void> {
     const extId = 'local-dev.copilot-history-viewer';
     try {
-        // 先禁用再启用，触发插件重载（不影响其他插件）
-        await vscode.commands.executeCommand('workbench.extensions.disableExtension', extId);
-        // 短暂等待确保禁用完成
-        await new Promise(r => setTimeout(r, 800));
-        await vscode.commands.executeCommand('workbench.extensions.enableExtension', extId);
+        // VS Code 内置单插件重载命令，不影响其他插件
+        await vscode.commands.executeCommand('workbench.extensions.reloadExtension', extId);
     } catch {
         // fallback：如果单插件重载失败，回退到全窗口重载
         await vscode.commands.executeCommand('workbench.action.reloadWindow');
