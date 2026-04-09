@@ -357,6 +357,14 @@ export class HistoryWebviewProvider implements vscode.WebviewViewProvider {
         const htmlPath = path.join(this.extensionUri.fsPath, 'media', 'webview.html');
         let html = fs.readFileSync(htmlPath, 'utf-8');
         html = html.replace(/NONCE_PLACEHOLDER/g, nonce);
+        // 直接注入当前版本号，无需等待网络检查
+        try {
+            const pkgPath = path.join(this.extensionUri.fsPath, 'package.json');
+            const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+            html = html.replace('VERSION_PLACEHOLDER', (pkg.version || '0.0.0'));
+        } catch {
+            html = html.replace('VERSION_PLACEHOLDER', '0.0.0');
+        }
         return html;
     }
 
