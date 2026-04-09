@@ -222,7 +222,8 @@ export class HistoryWebviewProvider implements vscode.WebviewViewProvider {
                             this.dataService.applyRawMetadata(metaContent);
                         }
                         if (metaContent || jsonlCount > 0) {
-                            await this.sendSessionsToWebview(this._lastFilter);
+                            // pull 完后强制清空过滤条件（传 null），确保云端 sessions 不被遮蔽
+                            await this.sendSessionsToWebview(null);
                             this.postMessage({ type: 'gitSyncStatus', status: 'success', message: `✅ 拉取成功（含 ${jsonlCount} 个聊天记录文件），数据已更新` });
                         } else {
                             this.postMessage({ type: 'gitSyncStatus', status: 'success', message: '远端暂无数据' });
@@ -289,10 +290,16 @@ export class HistoryWebviewProvider implements vscode.WebviewViewProvider {
         }
     }
 
-    private async sendSessionsToWebview(filter?: SessionFilter) {
-        if (filter !== undefined) { this._lastFilter = filter; }
+    private async sendSessionsToWebview(filter?: SessionFilter | null) {
+        if (filter === null) {
+            // null 表示强制清空过滤条件
+            this._lastFilter = undefined;
+        } else if (filter !== undefined) {
+            this._lastFilter = filter;
+        }
+        const wasReset = (filter === null);
         const sessions = await this.dataService.getSessions(this._lastFilter);
-        this.postMessage({ type: 'sessionsData', sessions });
+        this.postMessage({ type: 'sessionsData', sessions, ...(wasReset ? { resetFilter: true } : {}) });
     }
 
     private async sendTurnsToWebview(sessionId: string) {

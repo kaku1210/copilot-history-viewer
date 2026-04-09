@@ -406,6 +406,14 @@
             var msg = event.data;
             if (msg.type === 'sessionsData') {
                 allSessions = msg.sessions || [];
+                // 如果是 pull 后的全量刷新（reset 标记），重置前端过滤控件
+                if (msg.resetFilter) {
+                    currentKeyword = '';
+                    currentDateFrom = null;
+                    currentDateTo = null;
+                    var kw = document.getElementById('searchInput');
+                    if (kw) kw.value = '';
+                }
                 sessionDates = new Set();
                 allSessions.forEach(function(s) {
                     var d = new Date(s.createdAt);
