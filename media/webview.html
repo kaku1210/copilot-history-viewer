@@ -100,27 +100,48 @@
         .turn-note { font-size: 10px; color: #e8a838; font-style: italic; margin-top: 2px; }
         .turn-actions { display: none; gap: 2px; flex-shrink: 0; }
         .turn-header:hover .turn-actions { display: flex; }
-        .turn-content { display: none; padding: 8px 8px 8px 28px; background: rgba(255,255,255,0.02); }
+        /* ── Turn 展开区域 ── */
+        .turn-content { display: none; }
         .turn-content.visible { display: block; }
+        /* 用户问题气泡 */
+        .msg-user { margin: 6px 0 4px; padding: 9px 12px; background: rgba(255,255,255,0.048); border-radius: 6px; font-size: 13px; line-height: 1.65; word-break: break-word; color: var(--fg); }
+        /* AI 回复区 */
+        .msg-assistant { margin: 2px 0 12px; padding: 0; font-size: 13px; line-height: 1.7; color: var(--fg); word-break: break-word; }
+        /* 角色标签行 */
+        .msg-role { display: flex; align-items: center; gap: 6px; font-size: 11px; color: rgba(255,255,255,0.38); margin-bottom: 5px; user-select: none; padding: 0 2px; }
+        .msg-role .role-name { font-weight: 600; color: rgba(255,255,255,0.55); }
+        .msg-role .role-time { font-size: 10px; opacity: 0.6; }
         .response-item { margin-bottom: 12px; padding: 8px; border-radius: 4px; background: rgba(255,255,255,0.03); border-left: 3px solid var(--accent); }
 
         /* ===== Markdown 渲染样式 ===== */
-        .md-content { font-size: 12px; line-height: 1.6; }
-        .md-p { margin: 3px 0; }
-        .md-gap { height: 6px; }
-        .md-h1 { font-size: 14px; font-weight: bold; margin: 6px 0 3px; border-bottom: 1px solid var(--border); padding-bottom: 2px; }
-        .md-h2 { font-size: 13px; font-weight: bold; margin: 5px 0 2px; }
-        .md-h3 { font-size: 12px; font-weight: bold; margin: 4px 0 2px; }
-        .md-ul, .md-ol { margin: 3px 0 3px 16px; padding: 0; }
-        .md-ul li, .md-ol li { margin: 1px 0; }
-        .md-blockquote { border-left: 2px solid var(--accent); padding: 2px 8px; margin: 3px 0; opacity: 0.8; font-size: 11px; background: rgba(0,122,204,0.05); border-radius: 0 3px 3px 0; }
-        .md-inline-code { font-family: 'Consolas', 'Courier New', monospace; font-size: 11px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); border-radius: 3px; padding: 0 4px; color: #ce9178; }
-        .md-code-block { margin: 6px 0; border-radius: 4px; background: #1e1e1e; border: 1px solid var(--border); overflow: hidden; }
-        .md-code-lang { display: block; font-size: 10px; color: #858585; padding: 3px 8px 2px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.03); font-family: monospace; }
-        .md-code-block pre { margin: 0; padding: 8px; overflow-x: auto; }
-        .md-code-block code { font-family: 'Consolas', 'Courier New', monospace; font-size: 11px; color: #d4d4d4; white-space: pre; }
+        .md-content { }
+        .md-p { margin: 0 0 8px; }
+        .md-p:last-child { margin-bottom: 0; }
+        .md-gap { height: 4px; }
+        .md-h1 { font-size: 15px; font-weight: 700; margin: 14px 0 6px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+        .md-h2 { font-size: 14px; font-weight: 700; margin: 12px 0 5px; }
+        .md-h3 { font-size: 13px; font-weight: 600; margin: 10px 0 4px; }
+        .md-ul, .md-ol { margin: 4px 0 8px 20px; padding: 0; }
+        .md-ul li, .md-ol li { margin: 3px 0; line-height: 1.65; }
+        .md-blockquote { border-left: 3px solid var(--accent); padding: 4px 10px; margin: 8px 0; opacity: 0.85; background: rgba(0,122,204,0.07); border-radius: 0 4px 4px 0; }
+        .md-inline-code { font-family: 'Consolas', 'Courier New', monospace; font-size: 12px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.14); border-radius: 3px; padding: 1px 5px; color: #ce9178; }
+        .md-code-block { margin: 8px 0; border-radius: 6px; background: #1e1e1e; border: 1px solid rgba(255,255,255,0.1); overflow: hidden; }
+        .md-code-header { display: flex; align-items: center; justify-content: space-between; padding: 5px 12px 4px; border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.04); }
+        .md-code-lang { font-size: 11px; color: #858585; font-family: monospace; }
+        .md-code-copy { font-size: 10px; color: #858585; background: none; border: none; cursor: pointer; padding: 0; }
+        .md-code-copy:hover { color: #ddd; }
+        .md-code-block pre { margin: 0; padding: 12px; overflow-x: auto; }
+        .md-code-block code { font-family: 'Consolas', 'Courier New', monospace; font-size: 12px; color: #d4d4d4; white-space: pre; }
         .md-link { color: var(--accent); text-decoration: none; }
         .md-link:hover { text-decoration: underline; }
+        /* 表格 */
+        .md-table-wrap { overflow-x: auto; margin: 8px 0; }
+        .md-table { border-collapse: collapse; font-size: 12px; width: 100%; }
+        .md-table th { background: rgba(255,255,255,0.06); font-weight: 600; padding: 6px 12px; border: 1px solid rgba(255,255,255,0.12); text-align: left; }
+        .md-table td { padding: 5px 12px; border: 1px solid rgba(255,255,255,0.08); }
+        .md-table tr:nth-child(even) td { background: rgba(255,255,255,0.025); }
+        /* 分割线 */
+        .md-hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
         /* 模型/Agent 标签 */
         .turn-tag { display: inline-flex; align-items: center; font-size: 10px; padding: 1px 5px; border-radius: 3px; margin-left: 3px; font-weight: 500; vertical-align: middle; }
         .turn-tag-model { background: rgba(86,156,214,0.15); color: #569cd6; border: 1px solid rgba(86,156,214,0.3); }
@@ -163,7 +184,7 @@
         .md-tool-body-wrap.open .md-tool-line:last-child { border-bottom: none; }
         .md-tool-line { font-size: 11px; line-height: 1.5; }
         .response-role { font-size: 10px; text-transform: uppercase; opacity: 0.5; margin-bottom: 4px; font-weight: bold; }
-        .response-text { font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+        .response-text { font-size: 13px; line-height: 1.7; word-break: break-word; }
         .note-editor { display: none; padding: 6px 8px; gap: 4px; }
         .note-editor.visible { display: flex; }
         .note-editor input { flex: 1; padding: 3px 6px; background: var(--input-bg); color: var(--input-fg); border: 1px solid var(--accent); border-radius: 3px; font-size: 11px; outline: none; }
@@ -1066,16 +1087,20 @@
                         '<button>保存</button>' +
                     '</div>' +
                     '<div class="turn-content" id="content-' + escHtml(sid) + '-' + escHtml(tid) + '">' +
-                        '<div class="response-item" style="border-left-color:#e8a838;">' +
-                            '<div class="response-role">&#129489; 提问 <span style="font-weight:normal;opacity:0.6;margin-left:6px;">&#128336; ' + timeStr + '</span></div>' +
-                            '<div class="response-text md-content">' + renderMarkdown(turn.userMessage) + '</div>' +
+                        // 用户提问
+                        '<div class="msg-role">' +
+                            '<span class="role-name">&#128100; 你</span>' +
+                            '<span class="role-time">&#128336; ' + timeStr + '</span>' +
                         '</div>' +
+                        '<div class="msg-user md-content">' + renderMarkdown(turn.userMessage) + '</div>' +
+                        // AI 回复（可能多条）
                         turn.responses.map(function(r) {
-                            var respTime = r.timestamp ? '&#128336; ' + formatDateTime(r.timestamp) : '';
-                            return '<div class="response-item">' +
-                                '<div class="response-role">&#129302; 回复' + (respTime ? ' <span style="font-weight:normal;opacity:0.6;margin-left:6px;">' + respTime + '</span>' : '') + '</div>' +
-                                '<div class="response-text md-content">' + renderMarkdown(r.content) + '</div>' +
-                            '</div>';
+                            var respTime = r.timestamp ? formatDateTime(r.timestamp) : '';
+                            return '<div class="msg-role">' +
+                                    '<span class="role-name">&#129302; Copilot</span>' +
+                                    (respTime ? '<span class="role-time">&#128336; ' + respTime + '</span>' : '') +
+                                '</div>' +
+                                '<div class="msg-assistant md-content">' + renderMarkdown(r.content) + '</div>';
                         }).join('') +
                     '</div>' +
                 '</div>';
@@ -1271,6 +1296,12 @@
             while (i < lines.length) {
                 var line = lines[i];
 
+                // ---- 水平分割线 --- ----
+                if (/^(-{3,}|\*{3,}|_{3,})\s*$/.test(line.trim())) {
+                    out.push('<hr class="md-hr">');
+                    i++; continue;
+                }
+
                 // ---- 代码块 ```lang ... ``` ----
                 if (/^```/.test(line)) {
                     var lang = line.replace(/^```/, '').trim();
@@ -1280,9 +1311,35 @@
                         codeLines.push(escapeHtml(lines[i]));
                         i++;
                     }
-                    var langLabel = lang ? '<span class="md-code-lang">' + escapeHtml(lang) + '</span>' : '';
-                    out.push('<div class="md-code-block">' + langLabel + '<pre><code>' + codeLines.join('\n') + '</code></pre></div>');
+                    var langLabel = lang ? escapeHtml(lang) : '';
+                    var copyId = 'cp-' + Math.random().toString(36).slice(2,8);
+                    var header = '<div class="md-code-header">' +
+                        '<span class="md-code-lang">' + langLabel + '</span>' +
+                        '<button class="md-code-copy" data-copy-id="' + copyId + '" title="复制">复制</button>' +
+                        '</div>';
+                    out.push('<div class="md-code-block">' + header + '<pre><code id="' + copyId + '">' + codeLines.join('\n') + '</code></pre></div>');
                     i++;
+                    continue;
+                }
+
+                // ---- 表格 | col | col | ----
+                if (/^\|/.test(line)) {
+                    var tableRows = [];
+                    while (i < lines.length && /^\|/.test(lines[i])) {
+                        tableRows.push(lines[i]);
+                        i++;
+                    }
+                    // 第二行是分割行 |---|---| 跳过
+                    var headerRow = tableRows[0];
+                    var bodyRows = tableRows.slice(2);
+                    var parseCols = function(row) {
+                        return row.replace(/^\||\|$/g, '').split('|').map(function(c) { return c.trim(); });
+                    };
+                    var ths = parseCols(headerRow).map(function(c) { return '<th>' + renderInline(c) + '</th>'; }).join('');
+                    var trs = bodyRows.map(function(row) {
+                        return '<tr>' + parseCols(row).map(function(c) { return '<td>' + renderInline(c) + '</td>'; }).join('') + '</tr>';
+                    }).join('');
+                    out.push('<div class="md-table-wrap"><table class="md-table"><thead><tr>' + ths + '</tr></thead><tbody>' + trs + '</tbody></table></div>');
                     continue;
                 }
 
@@ -1386,6 +1443,21 @@
 
         // 事件委托：处理工具调用折叠点击（避免 onclick 字符串转义问题）
         document.addEventListener('click', function(e) {
+            // 代码块复制按钮
+            var copyBtn = e.target.closest('.md-code-copy');
+            if (copyBtn) {
+                var cid = copyBtn.getAttribute('data-copy-id');
+                var codeEl = cid ? document.getElementById(cid) : null;
+                if (codeEl) {
+                    navigator.clipboard.writeText(codeEl.textContent || '').then(function() {
+                        copyBtn.textContent = '✓ 已复制';
+                        setTimeout(function() { copyBtn.textContent = '复制'; }, 1500);
+                    }).catch(function() {
+                        copyBtn.textContent = '复制';
+                    });
+                }
+                return;
+            }
             var summary = e.target.closest('.md-tool-summary');
             if (summary) {
                 var gid = summary.getAttribute('data-gid');
