@@ -47,11 +47,11 @@ async function installVsix(vsixPath: string): Promise<void> {
     );
 }
 
-/** 安装完成后仅重载本插件，无需重启整个 VS Code */
+/** 安装完成后重载 VS Code 窗口以激活新版本 */
 async function reloadExtension(): Promise<void> {
-    const extId = 'local-dev.copilot-history-viewer';
-    // VS Code 内置单插件重载命令，不影响其他插件，不重启窗口
-    await vscode.commands.executeCommand('workbench.extensions.reloadExtension', extId);
+    // workbench.extensions.reloadExtension 仅在部分 VS Code 版本存在
+    // 使用 reloadWindow 作为通用兼容方案
+    await vscode.commands.executeCommand('workbench.action.reloadWindow');
 }
 
 export class HistoryWebviewProvider implements vscode.WebviewViewProvider {
