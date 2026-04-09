@@ -175,6 +175,10 @@
         @keyframes spin { to { transform: rotate(360deg); } }
         .toast { position: fixed; bottom: 20px; right: 20px; padding: 8px 16px; background: var(--btn-bg); color: var(--btn-fg); border-radius: 4px; font-size: 12px; z-index: 1000; opacity: 0; transform: translateY(10px); transition: all 0.3s; }
         .toast.visible { opacity: 1; transform: translateY(0); }
+        /* 回到顶部 */
+        .back-to-top { position: fixed; bottom: 56px; right: 14px; width: 30px; height: 30px; border-radius: 50%; background: var(--btn-bg); color: var(--btn-fg); border: none; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; z-index: 999; opacity: 0; pointer-events: none; transition: opacity 0.25s, transform 0.25s; transform: translateY(6px); box-shadow: 0 2px 6px rgba(0,0,0,0.35); }
+        .back-to-top.visible { opacity: 0.85; pointer-events: auto; transform: translateY(0); }
+        .back-to-top:hover { opacity: 1; }
         /* 云端/本地分组分割线 */
         .source-divider { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: rgba(0,122,204,0.08); border-top: 2px solid var(--accent); border-bottom: 1px solid var(--border); font-size: 11px; color: var(--accent); font-weight: bold; list-style: none; }
         .source-divider-count { font-weight: normal; opacity: 0.7; font-size: 10px; }
@@ -393,6 +397,7 @@
         <p>正在连接插件...</p>
     </div>
     <div class="toast" id="toast"></div>
+    <button class="back-to-top" id="backToTopBtn" title="回到顶部">▲</button>
 
     <script nonce="NONCE_PLACEHOLDER">
         var vscode = acquireVsCodeApi();
@@ -1398,6 +1403,21 @@
             var timer;
             return function() { clearTimeout(timer); timer = setTimeout(fn, ms); };
         }
+
+        // ===== 回到顶部 =====
+        (function() {
+            var btn = document.getElementById('backToTopBtn');
+            window.addEventListener('scroll', function() {
+                if (window.scrollY > 200) {
+                    btn.classList.add('visible');
+                } else {
+                    btn.classList.remove('visible');
+                }
+            }, { passive: true });
+            btn.addEventListener('click', function() {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+        })();
 
         function showToast(msg) {
             var toast = document.getElementById('toast');
