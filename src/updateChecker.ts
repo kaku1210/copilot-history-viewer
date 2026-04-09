@@ -32,18 +32,18 @@ function isNewer(remote: string, local: string): boolean {
     return false;
 }
 
-function fetchJson(url: string): Promise<any> {
+function fetchJson(url: string, token?: string): Promise<any> {
     return new Promise((resolve, reject) => {
-        const req = https.get(url, {
-            headers: {
-                'User-Agent': 'copilot-history-viewer-updater',
-                'Cache-Control': 'no-cache',
-                'Pragma': 'no-cache',
-            }
-        }, (res) => {
+        const headers: Record<string, string> = {
+            'User-Agent': 'copilot-history-viewer-updater',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+        };
+        if (token) { headers['Authorization'] = `token ${token}`; }
+        const req = https.get(url, { headers }, (res) => {
             // 处理重定向
             if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-                fetchJson(res.headers.location).then(resolve).catch(reject);
+                fetchJson(res.headers.location, token).then(resolve).catch(reject);
                 return;
             }
             let data = '';
@@ -58,7 +58,7 @@ function fetchJson(url: string): Promise<any> {
     });
 }
 
-export async function checkForUpdate(currentVersion: string): Promise<UpdateInfo> {
+export async function checkForUpdate(currentVersion: string, token?: string): Promise<UpdateInfo> {
     const base: UpdateInfo = {
         hasUpdate: false,
         currentVersion,
@@ -67,9 +67,11 @@ export async function checkForUpdate(currentVersion: string): Promise<UpdateInfo
         vsixUrl: VSIX_URL,
     };
     try {
-        // 使用 GitHub Contents API，返回 base64 编码的文件内容，不受 CDN 缓存影响
-        const apiResp = await fetchJson(getPackageUrl());
-        // apiResp.content 是 base64，需要解码后再 JSON.parse
+        const apiResp = await fetchJson(getPackageUrl(), token);
+        if (!apiResp.content) {
+            // API 限流或错误时 content 字段不存在，抛出详细错误
+            throw new Error(apiResp.message || 'GitHub API 返回异常');
+        }
         const decoded = Buffer.from(apiResp.content, 'base64').toString('utf-8');
         const pkg = JSON.parse(decoded);
         const latestVersion: string = pkg.version || currentVersion;

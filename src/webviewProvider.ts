@@ -310,7 +310,9 @@ export class HistoryWebviewProvider implements vscode.WebviewViewProvider {
             const pkgPath = path.join(this.extensionUri.fsPath, 'package.json');
             const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
             const currentVersion: string = pkg.version || '0.0.0';
-            const info = await checkForUpdate(currentVersion);
+            // 用同步配置里的 token 做认证请求，避免 GitHub API 匿名限流（60次/小时）
+            const syncToken = this._gitSync.getConfig()?.token;
+            const info = await checkForUpdate(currentVersion, syncToken);
             this.postMessage({
                 type: 'updateInfo',
                 hasUpdate: info.hasUpdate,
