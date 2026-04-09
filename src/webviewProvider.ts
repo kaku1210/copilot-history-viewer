@@ -41,11 +41,25 @@ async function downloadVsix(url: string, onProgress?: (msg: string) => void): Pr
 
 /** 用 VS Code 内置 API 安装 .vsix，无需调用外部 CLI */
 async function installVsix(vsixPath: string): Promise<void> {
-    // 直接使用 VS Code 内置命令安装本地 vsix，完全绕开 CLI 子进程问题
     await vscode.commands.executeCommand(
         'workbench.extensions.installExtension',
         vscode.Uri.file(vsixPath)
     );
+}
+
+/** 安装完成后仅重载本插件，无需重启整个 VS Code */
+async function reloadExtension(): Promise<void> {
+    const extId = 'local-dev.copilot-history-viewer';
+    try {
+        // 先禁用再启用，触发插件重载（不影响其他插件）
+        await vscode.commands.executeCommand('workbench.extensions.disableExtension', extId);
+        // 短暂等待确保禁用完成
+        await new Promise(r => setTimeout(r, 800));
+        await vscode.commands.executeCommand('workbench.extensions.enableExtension', extId);
+    } catch {
+        // fallback：如果单插件重载失败，回退到全窗口重载
+        await vscode.commands.executeCommand('workbench.action.reloadWindow');
+    }
 }
 
 export class HistoryWebviewProvider implements vscode.WebviewViewProvider {
@@ -153,14 +167,11 @@ export class HistoryWebviewProvider implements vscode.WebviewViewProvider {
                         });
                         this.postMessage({ type: 'updateInfo', hasUpdate: true, currentVersion: '?', latestVersion: '?', releasesUrl: '', vsixUrl, installStatus: 'installing' } as any);
                         await installVsix(tmpPath);
+                        this.postMessage({ type: 'updateInfo', hasUpdate: true, currentVersion: '?', latestVersion: '?', releasesUrl: '', vsixUrl, installStatus: 'installing', installProgress: '正在重载插件...' } as any);
+                        // 自动重载插件，无需手动操作
+                        await reloadExtension();
+                        // reloadExtension 后当前 webview 会被销毁并重建，下面代码可能不会执行
                         this.postMessage({ type: 'updateInfo', hasUpdate: false, currentVersion: '?', latestVersion: '?', releasesUrl: '', vsixUrl, installStatus: 'done' } as any);
-                        const choice = await vscode.window.showInformationMessage(
-                            '✅ 新版本安装成功！请重载窗口以生效。',
-                            '立即重载'
-                        );
-                        if (choice === '立即重载') {
-                            vscode.commands.executeCommand('workbench.action.reloadWindow');
-                        }
                     } catch (e: any) {
                         this.postMessage({ type: 'updateInfo', hasUpdate: true, currentVersion: '?', latestVersion: '?', releasesUrl: '', vsixUrl, installStatus: 'error', installError: e.message } as any);
                     }
