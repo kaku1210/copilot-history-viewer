@@ -190,16 +190,24 @@ export class HistoryWebviewProvider implements vscode.WebviewViewProvider {
                         this.postMessage({ type: 'gitSyncStatus', status: 'error', message: '请先配置 GitHub 私有仓库' });
                         break;
                     }
-                    this.postMessage({ type: 'gitSyncStatus', status: 'syncing', message: '正在收集本地聊天记录...' });
+                    this.postMessage({ type: 'gitSyncStatus', status: 'syncing', message: '正在扫描本地最新聊天记录...' });
                     try {
+                        // 推送前先重新加载，确保最新对话被读入
+                        await this.dataService.reload();
                         const metaContent = this.dataService.getRawMetadata();
                         const sessions = await this.dataService.getSessions({ archiveMode: 'all' });
                         const jsonlFiles = this.dataService.getLocalJsonlFiles();
-                        this.postMessage({ type: 'gitSyncStatus', status: 'syncing', message: `共收集到 ${jsonlFiles.length} 个记录文件，开始推送...` });
-                        await this._gitSync.push(metaContent, sessions, (msg) => {
+                        this.postMessage({ type: 'gitSyncStatus', status: 'syncing', message: `本地共 ${jsonlFiles.length} 个记录文件，正在检查变化...` });
+                        const result = await this._gitSync.push(metaContent, sessions, (msg) => {
                             this.postMessage({ type: 'gitSyncStatus', status: 'syncing', message: msg });
                         }, jsonlFiles);
-                        this.postMessage({ type: 'gitSyncStatus', status: 'success', message: `✅ 推送成功（含 ${jsonlFiles.length} 个聊天记录文件）` });
+                        const uploadedCount = result.uploaded;
+                        const skippedCount = result.skipped;
+                        if (uploadedCount === 0) {
+                            this.postMessage({ type: 'gitSyncStatus', status: 'success', message: `✅ 推送完成：所有 ${jsonlFiles.length} 个文件均无变化，远端已是最新` });
+                        } else {
+                            this.postMessage({ type: 'gitSyncStatus', status: 'success', message: `✅ 推送成功：新上传 ${uploadedCount} 个文件，跳过 ${skippedCount} 个无变化文件` });
+                        }
                     } catch (e: any) {
                         this.postMessage({ type: 'gitSyncStatus', status: 'error', message: '❌ ' + (e.message || '推送失败') });
                     }

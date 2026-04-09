@@ -53,6 +53,11 @@ export class DataStorageService {
         } catch (e) { console.error('Failed to save metadata:', e); }
     }
 
+    /** 重新从磁盘加载 metadata，确保推送前读到最新数据 */
+    async reload(): Promise<void> {
+        this.metadata = this.loadMetadata();
+    }
+
     /**
      * 获取所有 workspaceStorage 目录
      */
