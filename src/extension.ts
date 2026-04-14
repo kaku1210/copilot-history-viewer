@@ -1,6 +1,11 @@
 import * as vscode from 'vscode';
 import { DataStorageService } from './dataStorage';
 import { HistoryWebviewProvider } from './webviewProvider';
+import { ProjectStorageService } from './projectStorageService';
+import { ChangeTrackingService } from './changeTrackingService';
+
+let projectStorageService: ProjectStorageService;
+let changeTrackingService: ChangeTrackingService;
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Copilot History Viewer is now active');
@@ -8,8 +13,21 @@ export function activate(context: vscode.ExtensionContext) {
     // 初始化数据服务
     const dataService = new DataStorageService(context);
 
-    // 注册 WebView 侧边栏（retainContextWhenHidden：切换侧边栏时不销毁 WebView，避免重复刷新）
-    const provider = new HistoryWebviewProvider(context.extensionUri, dataService);
+    // 初始化项目级存储服务
+    projectStorageService = new ProjectStorageService(
+        vscode.workspace.workspaceFolders?.[0]?.uri
+    );
+
+    // 初始化变更追踪服务
+    changeTrackingService = new ChangeTrackingService(projectStorageService);
+
+    // 注册 WebView 侧边栏
+    const provider = new HistoryWebviewProvider(
+        context.extensionUri,
+        dataService,
+        projectStorageService,
+        changeTrackingService
+    );
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(
             HistoryWebviewProvider.viewType,
@@ -27,7 +45,16 @@ export function activate(context: vscode.ExtensionContext) {
                 '**/*.jsonl'
             )
         );
-        const onFileChange = () => provider.refreshIncremental();
+        const onFileChange = () => {
+            provider.refreshIncremental();
+            
+            // 同步到项目存储
+            if (projectStorageService.isEnabled()) {
+                dataService.loadCopilotSessions().then(sessions => {
+                    projectStorageService.syncSessionsFromGlobal(sessions);
+                });
+            }
+        };
         watcher.onDidCreate(onFileChange, null, context.subscriptions);
         watcher.onDidChange(onFileChange, null, context.subscriptions);
         context.subscriptions.push(watcher);
@@ -50,11 +77,72 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
+    // 注册切换项目级存储命令
+    context.subscriptions.push(
+        vscode.commands.registerCommand('copilotHistory.toggleProjectSync', async () => {
+            const config = vscode.workspace.getConfiguration('copilotHistoryViewer');
+            const currentValue = config.get<boolean>('enableProjectSync', false);
+            await config.update('enableProjectSync', !currentValue, vscode.ConfigurationTarget.Workspace);
+            
+            if (!currentValue) {
+                // 启用时，立即同步一次
+                const sessions = await dataService.loadCopilotSessions();
+                projectStorageService.syncSessionsFromGlobal(sessions);
+                vscode.window.showInformationMessage('项目级存储已启用，已同步当前会话');
+            } else {
+                vscode.window.showInformationMessage('项目级存储已禁用');
+            }
+
+            provider.refresh();
+        })
+    );
+
+    // 注册切换变更追踪命令
+    context.subscriptions.push(
+        vscode.commands.registerCommand('copilotHistory.toggleChangeTracking', async () => {
+            const config = vscode.workspace.getConfiguration('copilotHistoryViewer');
+            const currentValue = config.get<boolean>('enableChangeTracking', false);
+            await config.update('enableChangeTracking', !currentValue, vscode.ConfigurationTarget.Workspace);
+            
+            if (!currentValue) {
+                changeTrackingService.startTracking();
+                vscode.window.showInformationMessage('代码变更追踪已启用');
+            } else {
+                changeTrackingService.stopTracking();
+                vscode.window.showInformationMessage('代码变更追踪已禁用');
+            }
+
+            provider.refresh();
+        })
+    );
+
+    // 注册标记人工编辑命令
+    context.subscriptions.push(
+        vscode.commands.registerCommand(
+            'copilotHistory.markManualEdit',
+            (filePath: string, startLine: number, endLine: number) => {
+                changeTrackingService.markManualEdit(filePath, startLine, endLine);
+                vscode.window.showInformationMessage('已标记为人工编辑');
+            }
+        )
+    );
+
+    // 如果启用了变更追踪，立即开始监听
+    if (projectStorageService.isChangeTrackingEnabled()) {
+        changeTrackingService.startTracking();
+    }
+
     // 显示存储路径信息
     const storagePath = context.globalStorageUri.fsPath;
-    console.log(`[Copilot History] Data stored at: ${storagePath}`);
+    const projectLogPath = projectStorageService.getProjectLogDir();
+    console.log(`[Copilot History] Global storage: ${storagePath}`);
+    console.log(`[Copilot History] Project log: ${projectLogPath}`);
 }
 
 export function deactivate() {
+    // 保存当前会话
+    if (changeTrackingService) {
+        changeTrackingService.stopTracking();
+    }
     console.log('Copilot History Viewer deactivated');
 }

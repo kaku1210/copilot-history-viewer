@@ -53,6 +53,16 @@
           "type": "string",
           "default": "",
           "description": "自定义 Copilot Chat 历史数据路径（留空使用默认路径）"
+        },
+        "copilotHistoryViewer.enableProjectSync": {
+          "type": "boolean",
+          "default": false,
+          "description": "启用项目级存储：同步会话元数据到 <project>/.copilot-log/，支持 Git 版本控制"
+        },
+        "copilotHistoryViewer.enableChangeTracking": {
+          "type": "boolean",
+          "default": false,
+          "description": "启用编辑变更追踪：记录 Copilot 会话中的代码行变更到 <project>/.copilot-log/changes/"
         }
       }
     }

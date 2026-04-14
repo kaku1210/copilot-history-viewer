@@ -130,3 +130,22 @@ export interface SessionFilter {
     /** 排序方向：desc=降序新→旧（默认）| asc=升序旧→新 */
     sortDir?: 'desc' | 'asc';
 }
+
+/**
+ * 项目级存储配置消息
+ */
+export type ProjectStorageMessage = 
+    | { type: 'toggleProjectSync'; enabled: boolean }
+    | { type: 'toggleChangeTracking'; enabled: boolean }
+    | { type: 'queryProjectStatus' }
+    | { type: 'manualEditMark'; filePath: string; startLine: number; endLine: number };
+
+/**
+ * 项目存储状态响应
+ */
+export interface ProjectStorageStatus {
+    projectSyncEnabled: boolean;
+    changeTrackingEnabled: boolean;
+    projectLogPath: string;
+    currentSessionId: string | null;
+}

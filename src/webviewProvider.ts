@@ -7,6 +7,8 @@ import * as https from 'https';
 import { execFile } from 'child_process';
 import { DataStorageService } from './dataStorage';
 import { GitSyncService } from './gitSyncService';
+import { ProjectStorageService } from './projectStorageService';
+import { ChangeTrackingService } from './changeTrackingService';
 import { checkForUpdate } from './updateChecker';
 import { WebviewMessage, SessionFilter } from './types';
 
@@ -63,6 +65,8 @@ export class HistoryWebviewProvider implements vscode.WebviewViewProvider {
     constructor(
         private readonly extensionUri: vscode.Uri,
         private readonly dataService: DataStorageService,
+        private readonly projectStorage: ProjectStorageService,
+        private readonly changeTracking: ChangeTrackingService,
     ) {
         this._gitSync = new GitSyncService(dataService.getGlobalStoragePath());
     }
